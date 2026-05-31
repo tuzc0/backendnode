@@ -32,13 +32,10 @@ function getSafeStatusCode(statusCode) {
     return parsedCode;
 }
 
-function ensureLogDirectory() {
-    if (!fs.existsSync(LOG_DIR)) {
-        fs.mkdirSync(LOG_DIR, { recursive: true });
-    }
-}
-
-ensureLogDirectory();
+// Crea el directorio de logs al iniciar. recursive:true es no-op si ya existe.
+fs.promises.mkdir(LOG_DIR, { recursive: true }).catch((err) => {
+    console.error('No se pudo crear el directorio de log:', err.message);
+});
 
 const errorHandler = (err, req, res, next) => {
     const statusCode = getSafeStatusCode(err.statusCode);
@@ -58,10 +55,9 @@ const errorHandler = (err, req, res, next) => {
 
     const logLine = `${new Date().toISOString()} - ${statusCode} - ${ip} - ${email} - ${method} ${url} - ${errorMessage}\n`;
 
-    fs.appendFile(LOG_FILE, logLine, (fileError) => {
-        if (fileError) {
-            console.error('No se pudo escribir en el archivo de log.');
-        }
+    // Fire-and-forget: un fallo de log nunca interrumpe la respuesta HTTP al cliente.
+    fs.promises.appendFile(LOG_FILE, logLine).catch(() => {
+        console.error('No se pudo escribir en el archivo de log.');
     });
 
     if (process.env.NODE_ENV === 'development') {
