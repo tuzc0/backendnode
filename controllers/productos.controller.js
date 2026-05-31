@@ -2,50 +2,14 @@
 
 const { producto, categoria, archivo, sequelize } = require('../models');
 const { Op } = require('sequelize');
-const { body, param, query, validationResult } = require('express-validator');
+const { body, param, query } = require('express-validator');
+const { createHttpError, safeBitacora } = require('../utils/http');
+const { validateRequest, parsePositiveInteger, normalizeText, getPagination } = require('../utils/validators');
 
 let self = {};
 
 const MAX_LIMIT = 50;
-const DEFAULT_LIMIT = 20;
 const MAX_PRICE = 999999.99;
-
-function createHttpError(statusCode, message) {
-    const error = new Error(message);
-    error.statusCode = statusCode;
-    return error;
-}
-
-function validateRequest(req) {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-        const error = createHttpError(400, 'Datos de entrada inválidos.');
-        error.details = errors.array();
-        throw error;
-    }
-}
-
-function parsePositiveInteger(value, fieldName = 'id') {
-    const number = Number(value);
-
-    if (!Number.isInteger(number) || number <= 0) {
-        throw createHttpError(400, `El campo ${fieldName} debe ser un entero positivo.`);
-    }
-
-    return number;
-}
-
-function normalizeText(value) {
-    if (typeof value !== 'string') {
-        return '';
-    }
-
-    return value
-        .replace(/[\u0000-\u001F\u007F]/g, ' ')
-        .trim()
-        .replace(/\s+/g, ' ');
-}
 
 function normalizeOptionalInteger(value, fieldName) {
     if (value === undefined || value === null || value === '') {
@@ -65,19 +29,6 @@ function normalizePrice(value) {
     return Number(price.toFixed(2));
 }
 
-function getPagination(req) {
-    const page = req.query.page ? parsePositiveInteger(req.query.page, 'page') : 1;
-    const limit = req.query.limit ? parsePositiveInteger(req.query.limit, 'limit') : DEFAULT_LIMIT;
-    const safeLimit = Math.min(limit, MAX_LIMIT);
-    const offset = (page - 1) * safeLimit;
-
-    return {
-        page,
-        limit: safeLimit,
-        offset
-    };
-}
-
 function sanitizeProductoOutput(item) {
     return {
         id: item.id,
@@ -92,18 +43,6 @@ function sanitizeProductoOutput(item) {
             }))
             : []
     };
-}
-
-async function safeBitacora(req, action, id) {
-    if (typeof req.bitacora !== 'function') {
-        return;
-    }
-
-    try {
-        await req.bitacora(action, id);
-    } catch (error) {
-        console.error('No se pudo registrar la acción en bitácora.');
-    }
 }
 
 async function validateArchivoExists(archivoid) {

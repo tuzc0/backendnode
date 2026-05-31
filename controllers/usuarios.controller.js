@@ -3,7 +3,9 @@
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { usuario, rol, sequelize } = require('../models');
-const { body, param, query, validationResult } = require('express-validator');
+const { body, param, query } = require('express-validator');
+const { createHttpError, safeBitacora } = require('../utils/http');
+const { validateRequest, parsePositiveInteger, normalizeText } = require('../utils/validators');
 const ClaimTypes = require('../config/claimtypes');
 
 let self = {};
@@ -11,43 +13,6 @@ let self = {};
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 20;
 const BCRYPT_SALT_ROUNDS = 12;
-
-function createHttpError(statusCode, message) {
-    const error = new Error(message);
-    error.statusCode = statusCode;
-    return error;
-}
-
-function validateRequest(req) {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-        const error = createHttpError(400, 'Datos de entrada inválidos.');
-        error.details = errors.array();
-        throw error;
-    }
-}
-
-function parsePositiveInteger(value, fieldName) {
-    const number = Number(value);
-
-    if (!Number.isInteger(number) || number <= 0) {
-        throw createHttpError(400, `El campo ${fieldName} debe ser un entero positivo.`);
-    }
-
-    return number;
-}
-
-function normalizeText(value) {
-    if (typeof value !== 'string') {
-        return '';
-    }
-
-    return value
-        .replace(/[\u0000-\u001F\u007F]/g, ' ')
-        .trim()
-        .replace(/\s+/g, ' ');
-}
 
 function normalizeEmail(value) {
     if (typeof value !== 'string') {
@@ -92,18 +57,6 @@ function sanitizeUsuarioOutput(userData) {
         nombre: plain.nombre,
         rol: getRoleName(plain)
     };
-}
-
-async function safeBitacora(req, action, id) {
-    if (typeof req.bitacora !== 'function') {
-        return;
-    }
-
-    try {
-        await req.bitacora(action, id);
-    } catch (error) {
-        console.error('No se pudo registrar la acción en bitácora.');
-    }
 }
 
 async function findRoleByName(roleName) {
