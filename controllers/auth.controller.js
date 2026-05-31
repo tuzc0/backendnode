@@ -3,6 +3,8 @@
 const bcrypt = require('bcrypt')
 const { usuario, rol, Sequelize } = require('../models')
 const { GeneraToken, TiempoRestanteToken } = require('../services/jwttoken.service')
+const { setNoCacheHeaders } = require('../utils/http')
+const { isNonEmptyString } = require('../utils/validators')
 
 let self = {}
 
@@ -18,16 +20,6 @@ const MAX_ATTEMPT_RECORDS = 1000
 const FAKE_PASSWORD_HASH = '$2b$10$8aT1uBXqJ5sQ5d0W.kFv0erW2cr6gzkStsklzF5O7Nex3OyycgGRa'
 
 const loginAttempts = new Map()
-
-const setNoCacheHeaders = (res) => {
-    res.set('Cache-Control', 'no-store')
-    res.set('Pragma', 'no-cache')
-    res.set('Expires', '0')
-}
-
-const isNonEmptyString = (value) => {
-    return typeof value === 'string' && value.trim().length > 0
-}
 
 const normalizeEmail = (email) => {
     if (!isNonEmptyString(email)) return null
