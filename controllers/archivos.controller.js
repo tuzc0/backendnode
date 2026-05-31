@@ -3,7 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 const { archivo, sequelize } = require('../models');
-const { param, query, validationResult } = require('express-validator');
+const { param, query } = require('express-validator');
+const { createHttpError, safeBitacora } = require('../utils/http');
+const { validateRequest, parsePositiveInteger } = require('../utils/validators');
 
 let self = {};
 
@@ -11,32 +13,6 @@ const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 20;
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 const FILES_IN_DB = String(process.env.FILES_IN_DB).toLowerCase() === 'true';
-
-function createHttpError(statusCode, message) {
-    const error = new Error(message);
-    error.statusCode = statusCode;
-    return error;
-}
-
-function validateRequest(req) {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-        const error = createHttpError(400, 'Datos de entrada inválidos.');
-        error.details = errors.array();
-        throw error;
-    }
-}
-
-function parsePositiveInteger(value, fieldName = 'id') {
-    const number = Number(value);
-
-    if (!Number.isInteger(number) || number <= 0) {
-        throw createHttpError(400, `El campo ${fieldName} debe ser un entero positivo.`);
-    }
-
-    return number;
-}
 
 function sanitizeFilename(filename) {
     if (!filename || typeof filename !== 'string') {
@@ -111,18 +87,6 @@ async function readUploadedFile(filePath) {
     }
 
     return await fs.promises.readFile(filePath);
-}
-
-async function safeBitacora(req, action, id) {
-    if (typeof req.bitacora !== 'function') {
-        return;
-    }
-
-    try {
-        await req.bitacora(action, id);
-    } catch (error) {
-        console.error('No se pudo registrar la acción en bitácora.');
-    }
 }
 
 self.idValidator = [

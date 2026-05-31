@@ -1,38 +1,13 @@
 'use strict';
 
 const { rol } = require('../models');
-const { query, validationResult } = require('express-validator');
+const { query } = require('express-validator');
+const { validateRequest, parsePositiveInteger } = require('../utils/validators');
 
 let self = {};
 
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 20;
-
-function createHttpError(statusCode, message) {
-    const error = new Error(message);
-    error.statusCode = statusCode;
-    return error;
-}
-
-function validateRequest(req) {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-        const error = createHttpError(400, 'Datos de entrada inválidos.');
-        error.details = errors.array();
-        throw error;
-    }
-}
-
-function parsePositiveInteger(value, fieldName) {
-    const number = Number(value);
-
-    if (!Number.isInteger(number) || number <= 0) {
-        throw createHttpError(400, `El campo ${fieldName} debe ser un entero positivo.`);
-    }
-
-    return number;
-}
 
 function sanitizeRoleOutput(item) {
     return {
