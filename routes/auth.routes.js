@@ -3,17 +3,12 @@
 const router = require('express').Router()
 const auth = require('../controllers/auth.controller')
 const Authorize = require('../middlewares/auth.middleware')
+const { loginRateLimit } = require('../middlewares/rateLimit.middleware')
 
 const ROLES = Object.freeze({
     USUARIO: 'Usuario',
     ADMINISTRADOR: 'Administrador'
 })
-
-const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
-const LOGIN_RATE_LIMIT_MAX_REQUESTS = 30
-const MAX_ATTEMPT_RECORDS = 1000
-
-const loginAttemptsByIp = new Map()
 
 const asyncHandler = (handler) => {
     return (req, res, next) => {
@@ -27,59 +22,6 @@ const setNoCacheHeaders = (req, res, next) => {
     res.set('Expires', '0')
     res.set('X-Content-Type-Options', 'nosniff')
     next()
-}
-
-const getClientIp = (req) => {
-    const forwardedFor = req.headers['x-forwarded-for']
-
-    if (typeof forwardedFor === 'string' && forwardedFor.trim().length > 0) {
-        return forwardedFor.split(',')[0].trim()
-    }
-
-    return req.ip || req.socket?.remoteAddress || 'unknown'
-}
-
-const cleanupLoginAttempts = () => {
-    if (loginAttemptsByIp.size <= MAX_ATTEMPT_RECORDS) return
-
-    const now = Date.now()
-
-    for (const [ip, record] of loginAttemptsByIp.entries()) {
-        if (record.resetAt <= now) {
-            loginAttemptsByIp.delete(ip)
-        }
-
-        if (loginAttemptsByIp.size <= MAX_ATTEMPT_RECORDS) break
-    }
-}
-
-const loginRateLimit = (req, res, next) => {
-    cleanupLoginAttempts()
-
-    const ip = getClientIp(req)
-    const now = Date.now()
-
-    const record = loginAttemptsByIp.get(ip) || {
-        count: 0,
-        resetAt: now + LOGIN_RATE_LIMIT_WINDOW_MS
-    }
-
-    if (record.resetAt <= now) {
-        record.count = 0
-        record.resetAt = now + LOGIN_RATE_LIMIT_WINDOW_MS
-    }
-
-    record.count += 1
-    loginAttemptsByIp.set(ip, record)
-
-    if (record.count > LOGIN_RATE_LIMIT_MAX_REQUESTS) {
-        res.set('Retry-After', Math.ceil((record.resetAt - now) / 1000))
-        return res.status(429).json({
-            mensaje: 'Demasiadas solicitudes. Intente nuevamente más tarde.'
-        })
-    }
-
-    return next()
 }
 
 const requireJsonContentType = (req, res, next) => {

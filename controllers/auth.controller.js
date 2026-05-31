@@ -1,6 +1,7 @@
 'use strict'
 
 const bcrypt = require('bcrypt')
+const crypto = require('crypto')
 const { usuario, rol, Sequelize } = require('../models')
 const { GeneraToken, TiempoRestanteToken } = require('../services/jwttoken.service')
 const { setNoCacheHeaders } = require('../utils/http')
@@ -17,7 +18,8 @@ const MAX_FAILED_ATTEMPTS = 5
 const LOCK_TIME_MS = 15 * 60 * 1000
 const MAX_ATTEMPT_RECORDS = 1000
 
-const FAKE_PASSWORD_HASH = '$2b$10$8aT1uBXqJ5sQ5d0W.kFv0erW2cr6gzkStsklzF5O7Nex3OyycgGRa'
+const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 12)
+const FAKE_PASSWORD_HASH = bcrypt.hashSync(crypto.randomUUID(), BCRYPT_SALT_ROUNDS)
 
 const loginAttempts = new Map()
 
