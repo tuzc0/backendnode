@@ -1,0 +1,42 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Archivos subidos por usuarios
+uploads/
+
+# Logs
+log/
+*.log
+
+# Documentación generada automáticamente
+swagger-output.json
+
+# Cobertura de pruebas
+coverage/
+.nyc_output/
+
+# Compilados
+dist/
+build/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores e IDEs
+.claude/
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*~
