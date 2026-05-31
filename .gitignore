@@ -29,6 +29,10 @@ build/
 Thumbs.db
 desktop.ini
 
+# REST Client / pruebas manuales con posibles tokens
+restclient/
+*.http
+
 # Editores e IDEs
 .claude/
 .vscode/
