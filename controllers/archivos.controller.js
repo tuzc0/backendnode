@@ -1,7 +1,7 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { archivo, sequelize } = require('../models');
 const { param, query } = require('express-validator');
 const { createHttpError, safeBitacora } = require('../utils/http');

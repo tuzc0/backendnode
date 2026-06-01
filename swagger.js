@@ -86,17 +86,50 @@ const doc = {
 
     definitions: {
         LoginRequest: {
-            email: 'usuario@correo.com',
-            password: 'ContraseñaSegura123!'
+            type: 'object',
+            required: ['email', 'password'],
+            properties: {
+                email: {
+                    type: 'string',
+                    example: 'usuario@correo.com'
+                },
+                password: {
+                    type: 'string',
+                    minLength: 8,
+                    maxLength: 128,
+                    description: 'Contraseña del usuario. No colocar contraseñas reales en la documentación.'
+                }
+            }
         },
         LoginResponse: {
-            email: 'usuario@correo.com',
-            nombre: 'Nombre del usuario',
-            rol: 'Usuario',
-            jwt: 'token.jwt.generado'
+            type: 'object',
+            properties: {
+                email: {
+                    type: 'string',
+                    example: 'usuario@correo.com'
+                },
+                nombre: {
+                    type: 'string',
+                    example: 'Nombre del usuario'
+                },
+                rol: {
+                    type: 'string',
+                    example: 'Usuario'
+                },
+                jwt: {
+                    type: 'string',
+                    example: 'token.jwt.generado'
+                }
+            }
         },
         ErrorResponse: {
-            mensaje: 'Descripción genérica del error.'
+            type: 'object',
+            properties: {
+                mensaje: {
+                    type: 'string',
+                    example: 'Descripción genérica del error.'
+                }
+            }
         }
     }
 }

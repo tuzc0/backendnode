@@ -1,7 +1,7 @@
 'use strict';
 
 const bcrypt = require('bcrypt');
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const { usuario, rol, sequelize } = require('../models');
 const { body, param, query } = require('express-validator');
 const { createHttpError, safeBitacora } = require('../utils/http');

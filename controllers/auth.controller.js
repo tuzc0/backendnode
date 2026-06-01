@@ -1,7 +1,7 @@
 'use strict'
 
 const bcrypt = require('bcrypt')
-const crypto = require('crypto')
+const crypto = require('node:crypto')
 const { usuario, rol, Sequelize } = require('../models')
 const { GeneraToken, TiempoRestanteToken } = require('../services/jwttoken.service')
 const { setNoCacheHeaders } = require('../utils/http')
