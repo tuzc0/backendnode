@@ -1,0 +1,117 @@
+### ============================================================
+### 01-auth-jwt.http — Autenticación, JWT y tiempo restante
+### ============================================================
+### Endpoint: POST /api/auth   (login)
+### Endpoint: GET  /api/auth/tiempo (tiempo restante del token)
+### ============================================================
+### ANTES DE EJECUTAR: ajusta las variables según tus usuarios de desarrollo.
+### Nunca uses credenciales reales ni de producción.
+### ============================================================
+@baseUrl       = http://localhost:3000
+@adminEmail    = usuarioAdmin@example.com
+@adminPassword = 123456
+@userEmail     = usuarioNormal@example.com
+@userPassword  = 123456
+
+### ── LOGIN CORRECTO ─────────────────────────────────────────
+
+###
+# Esperado: 200 OK — { email, nombre, rol, jwt }
+# @name loginAdmin
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+# Esperado: 200 OK — { email, nombre, rol, jwt }
+# @name loginUser
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+### ── LOGIN FALLIDO ───────────────────────────────────────────
+
+###
+# Esperado: 401 Unauthorized — contraseña incorrecta (mensaje genérico)
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "Contraseña_Incorrecta_99"
+}
+
+###
+# Esperado: 401 Unauthorized — login rechazado con mensaje genérico
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "no-es-un-email",
+  "password": "{{adminPassword}}"
+}
+
+###
+# Esperado: 400 Bad Request — solicitud invalida
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{}
+
+###
+# Esperado: 400 Bad Request — solicitud inválida por contraseña demasiado larga
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+    "email": "{{adminEmail}}",
+    "password": "Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+
+###
+# Esperado: 415 Unsupported Media Type — Content-Type incorrecto
+POST {{baseUrl}}/api/auth
+Content-Type: text/plain
+Accept: application/json
+
+email=admin&password=Admin123
+
+### ── TIEMPO RESTANTE DEL TOKEN ────────────────────────────────
+
+###
+# Esperado: 200 OK — responde con tiempo en formato MM:SS
+# Requiere ejecutar loginAdmin primero en esta sesión REST Client
+GET {{baseUrl}}/api/auth/tiempo
+Accept: text/plain
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 401 Unauthorized — Acceso no autorizado (sin token)
+GET {{baseUrl}}/api/auth/tiempo
+Accept: text/plain
+
+###
+# Esperado: 401 Unauthorized — Acceso no autorizado (token inventado / firma inválida)
+GET {{baseUrl}}/api/auth/tiempo
+Accept: text/plain
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.firma_invalida_aqui
+
+###
+# Esperado: 401 Unauthorized — Acceso no autorizado (header Authorization mal formado (sin Bearer))
+GET {{baseUrl}}/api/auth/tiempo
+Accept: text/plain
+Authorization: Token algoquenoesbearer

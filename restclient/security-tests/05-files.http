@@ -1,0 +1,148 @@
+### ============================================================
+### 05-files.http — Gestión de archivos (upload, consulta, eliminación)
+### ============================================================
+### Endpoints:
+###   POST   /api/archivos            (upload, Admin)
+###   GET    /api/archivos            (lista, Admin)
+###   GET    /api/archivos/:id/detalle (metadatos, Admin)
+###   GET    /api/archivos/:id         (descarga, Admin)
+###   PUT    /api/archivos/:id         (reemplazar, Admin)
+###   DELETE /api/archivos/:id         (eliminar, Admin)
+###
+### REQUISITO PREVIO:
+###   Crear los siguientes archivos antes de ejecutar:
+###
+###   restclient/security-tests/files/valid-image.jpg
+###     → Coloca cualquier imagen JPG válida (max 2MB).
+###     → No uses fotos personales ni sensibles.
+###
+###   restclient/security-tests/files/invalid-file.txt
+###     → Ya existe en este repositorio (archivo de texto plano).
+###
+### NOTA sobre multipart: REST Client envía el archivo con la ruta
+### relativa desde el directorio donde se abre el workspace.
+### ============================================================
+
+@baseUrl       = http://localhost:3000
+@adminEmail    = usuarioAdmin@example.com
+@adminPassword = 123456
+
+###
+# @name loginAdmin
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### ── LISTA DE ARCHIVOS ───────────────────────────────────────
+
+###
+# Esperado: 200 OK — lista paginada de archivos
+GET {{baseUrl}}/api/archivos
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+### ── SUBIR ARCHIVO VÁLIDO ────────────────────────────────────
+
+###
+# @name subirArchivo
+# Esperado: 201 Created — archivo JPG válido subido correctamente
+# REQUISITO: el archivo files/valid-image.jpg debe existir
+POST {{baseUrl}}/api/archivos
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="valid-image.jpg"
+Content-Type: image/jpeg
+
+< ./files/valid-image.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ── CONSULTAR ARCHIVO ───────────────────────────────────────
+
+###
+# Esperado: 200 OK — metadatos del archivo subido
+# NOTA: reemplaza :id por el id devuelto en subirArchivo
+GET {{baseUrl}}/api/archivos/{{subirArchivo.response.body.$.id}}/detalle
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — devuelve el binario de la imagen
+# (REST Client mostrará los bytes o la imagen si la extensión es .jpg)
+GET {{baseUrl}}/api/archivos/{{subirArchivo.response.body.$.id}}
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+### ── ARCHIVOS INVÁLIDOS ──────────────────────────────────────
+
+###
+# Esperado: 400 Bad Request — extensión no permitida (.txt)
+POST {{baseUrl}}/api/archivos
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryTXT
+
+------WebKitFormBoundaryTXT
+Content-Disposition: form-data; name="file"; filename="invalid-file.txt"
+Content-Type: text/plain
+
+< ./files/invalid-file.txt
+------WebKitFormBoundaryTXT--
+
+###
+# Esperado: 400 Bad Request — mimetype incorrecto declarado (PNG con extensión jpg)
+# El backend valida la firma JPEG, por lo que detectará que no es un JPG real
+POST {{baseUrl}}/api/archivos
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryFAKE
+
+------WebKitFormBoundaryFAKE
+Content-Disposition: form-data; name="file"; filename="fake.jpg"
+Content-Type: image/jpeg
+
+< ./files/invalid-file.txt
+------WebKitFormBoundaryFAKE--
+
+###
+# Esperado: 400 Bad Request — request sin archivo
+POST {{baseUrl}}/api/archivos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{}
+
+### ── REEMPLAZAR ARCHIVO ──────────────────────────────────────
+
+###
+# Esperado: 204 No Content — reemplazar el archivo subido
+# REQUISITO: el archivo files/valid-image.jpg debe existir
+# NOTA: reemplaza :id por el id devuelto en subirArchivo
+PUT {{baseUrl}}/api/archivos/{{subirArchivo.response.body.$.id}}
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryREPLACE
+
+------WebKitFormBoundaryREPLACE
+Content-Disposition: form-data; name="file"; filename="valid-image.jpg"
+Content-Type: image/jpeg
+
+< ./files/valid-image.jpg
+------WebKitFormBoundaryREPLACE--
+
+### ── ELIMINAR ARCHIVO ────────────────────────────────────────
+
+###
+# Esperado: 204 No Content — eliminar el archivo subido
+DELETE {{baseUrl}}/api/archivos/{{subirArchivo.response.body.$.id}}
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 404 Not Found — archivo ya eliminado
+GET {{baseUrl}}/api/archivos/{{subirArchivo.response.body.$.id}}/detalle
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}

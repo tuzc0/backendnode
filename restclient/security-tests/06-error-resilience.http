@@ -1,0 +1,158 @@
+### ============================================================
+### 06-error-resilience.http — Resiliencia ante errores
+### ============================================================
+### Demuestra que el servidor responde correctamente ante
+### entradas anómalas, rutas inexistentes, métodos no permitidos
+### y errores controlados SIN caerse ni revelar información interna.
+###
+### Después de cada error se llama /health para evidenciar
+### que el servidor sigue activo.
+### ============================================================
+
+@baseUrl       = http://localhost:3000
+@adminEmail    = usuarioAdmin@example.com
+@adminPassword = 123456
+
+###
+# @name loginAdmin
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### ── RUTAS INEXISTENTES ──────────────────────────────────────
+
+###
+# Esperado: 404 Not Found — { "mensaje": "Recurso no encontrado" }
+GET {{baseUrl}}/api/recurso-que-no-existe
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Confirmación: servidor activo tras 404
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+###
+# Esperado: 404 Not Found — categoria con id inexistente
+GET {{baseUrl}}/api/categorias/99999
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Confirmación: servidor activo tras 404
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+### ── MÉTODOS NO PERMITIDOS ───────────────────────────────────
+
+###
+# Esperado: 405 Method Not Allowed — GET en /api/auth (solo acepta POST)
+# El endpoint de login solo permite POST
+GET {{baseUrl}}/api/auth
+Accept: application/json
+
+###
+# Confirmación: servidor activo tras 405
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+###
+# Esperado: 405 Method Not Allowed — PATCH en /api/auth
+PATCH {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{}
+
+###
+# Confirmación: servidor activo tras 405
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+### ── DATOS INVÁLIDOS QUE GENERAN ERROR CONTROLADO ────────────
+
+###
+# Esperado: 400 Bad Request — id de categoría no es entero
+GET {{baseUrl}}/api/categorias/no-es-un-id
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Confirmación: servidor activo tras 400
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — id de producto no es entero
+GET {{baseUrl}}/api/productos/abc
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Confirmación: servidor activo
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — id de archivo no es entero
+GET {{baseUrl}}/api/archivos/xyz/detalle
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Confirmación: servidor activo
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+### ── BODY VACÍO EN ENDPOINT QUE REQUIERE JSON ────────────────
+
+###
+# Esperado: 400 Bad Request — login sin body
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+###
+# Confirmación: servidor activo
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+###
+# Esperado: 415 Unsupported Media Type — Content-Type incorrecto
+POST {{baseUrl}}/api/auth
+Content-Type: text/plain
+Accept: application/json
+
+email=admin&password=Admin123
+
+###
+# Confirmación: servidor activo tras 415
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+### ── ACCESO CON TOKEN EXPIRADO SIMULADO ──────────────────────
+
+###
+# Esperado: 401 Unauthorized — token con formato JWT pero firma inválida
+# El servidor no se cae, simplemente rechaza el token
+GET {{baseUrl}}/api/categorias
+Accept: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxfQ.firma_invalida_aqui
+
+###
+# Confirmación final: servidor sigue activo después de todos los errores
+# Esperado: 200 OK — { "status": "ok", ... }
+GET {{baseUrl}}/health
+Accept: application/json
+
+###
+# Confirmación final con BD
+# Esperado: 200 OK — { "status": "ok", "db": "conectado" }
+GET {{baseUrl}}/health/db
+Accept: application/json

@@ -1,0 +1,128 @@
+### ============================================================
+### 02-authorization.http — Autorización por roles (RBAC)
+### ============================================================
+### Demuestra que:
+###   - Administrador puede acceder a rutas de Admin.
+###   - Usuario NO puede acceder a rutas exclusivas de Admin.
+###   - Sin token se devuelve 401.
+###   - Con rol insuficiente se devuelve 403.
+### ============================================================
+
+@baseUrl       = http://localhost:3000
+@adminEmail    = usuarioAdmin@example.com
+@adminPassword = 123456
+@userEmail     = usuarioNormal@example.com
+@userPassword  = 123456
+
+### ── OBTENER TOKENS ──────────────────────────────────────────
+
+###
+# Esperado: 200 OK
+# @name loginAdmin
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+# Esperado: 200 OK
+# @name loginUser
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+### ── ACCESO PERMITIDO ────────────────────────────────────────
+
+###
+# Esperado: 200 OK — Administrador puede listar categorías
+GET {{baseUrl}}/api/categorias
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — Usuario también puede listar categorías (ruta pública autenticada)
+GET {{baseUrl}}/api/categorias
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — Administrador puede listar usuarios (ruta exclusiva Admin)
+GET {{baseUrl}}/api/usuarios
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — Administrador puede listar roles
+GET {{baseUrl}}/api/roles
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — Administrador puede listar bitácora
+GET {{baseUrl}}/api/bitacora
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+### ── ACCESO DENEGADO (RBAC) ──────────────────────────────────
+
+###
+# Esperado: 403 Forbidden — Usuario intenta acceder a /api/usuarios (solo Admin)
+GET {{baseUrl}}/api/usuarios
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Esperado: 403 Forbidden — Usuario intenta listar roles (solo Admin)
+GET {{baseUrl}}/api/roles
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Esperado: 403 Forbidden — Usuario intenta ver bitácora (solo Admin)
+GET {{baseUrl}}/api/bitacora
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Esperado: 403 Forbidden — Usuario intenta crear categoría (solo Admin)
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+{
+  "nombre": "Intento sin permisos"
+}
+
+### ── SIN AUTENTICACIÓN ───────────────────────────────────────
+
+###
+# Esperado: 401 Unauthorized — acceso a categorías sin token
+GET {{baseUrl}}/api/categorias
+Accept: application/json
+
+###
+# Esperado: 401 Unauthorized — acceso a usuarios sin token
+GET {{baseUrl}}/api/usuarios
+Accept: application/json
+
+###
+# Esperado: 401 Unauthorized — header Authorization: Bearer sin token
+GET {{baseUrl}}/api/categorias
+Accept: application/json
+Authorization: Bearer
+
+###
+# Esperado: 401 Unauthorized — token con firma inválida
+GET {{baseUrl}}/api/categorias
+Accept: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.firma_completamente_inventada

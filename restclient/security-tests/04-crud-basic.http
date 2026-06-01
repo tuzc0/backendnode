@@ -1,0 +1,210 @@
+### ============================================================
+### 04-crud-basic.http — CRUD básico de recursos principales
+### ============================================================
+### Cubre: Categorías, Productos, Usuarios, Roles, Bitácora.
+### Ejecutar en orden para que los recursos creados estén disponibles
+### en los pasos de consulta/edición/eliminación.
+### ============================================================
+
+@baseUrl       = http://localhost:3000
+@adminEmail    = usuarioAdmin@example.com
+@adminPassword = 123456
+@userEmail     = usuarioNormal@example.com
+@userPassword  = 123456
+
+###
+# @name loginAdmin
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+# @name loginUser
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+### ── ROLES (solo lectura) ────────────────────────────────────
+
+###
+# Esperado: 200 OK — lista de roles disponibles (Usuario, Administrador)
+GET {{baseUrl}}/api/roles
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+### ── CATEGORÍAS ──────────────────────────────────────────────
+
+###
+# Esperado: 200 OK — lista paginada de categorías
+GET {{baseUrl}}/api/categorias
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — primera página con 5 registros
+GET {{baseUrl}}/api/categorias?page=1&limit=5
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — primera categoría (ajusta id según tu BD)
+GET {{baseUrl}}/api/categorias/1
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# @name crearCategoria
+# Esperado: 201 Created — categoría de prueba CRUD
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "nombre": "Categoria CRUD Test"
+}
+
+###
+# Esperado: 409 Conflict — misma categoría de nuevo (duplicado)
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "nombre": "Categoria CRUD Test"
+}
+
+###
+# Esperado: 204 No Content — editar la categoría creada
+# NOTA: reemplaza :id por el id devuelto en crearCategoria
+PUT {{baseUrl}}/api/categorias/{{crearCategoria.response.body.$.id}}
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "nombre": "Categoria CRUD Editada"
+}
+
+###
+# Esperado: 204 No Content — eliminar la categoría editada
+# NOTA: reemplaza :id por el id devuelto en crearCategoria
+DELETE {{baseUrl}}/api/categorias/{{crearCategoria.response.body.$.id}}
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 404 Not Found — categoría ya eliminada
+GET {{baseUrl}}/api/categorias/{{crearCategoria.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+### ── PRODUCTOS ────────────────────────────────────────────────
+
+###
+# Esperado: 200 OK — lista paginada de productos
+GET {{baseUrl}}/api/productos
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — búsqueda por título (ajusta término)
+GET {{baseUrl}}/api/productos?s=prueba
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — acceso de Usuario (rol lectura)
+GET {{baseUrl}}/api/productos
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# @name crearProducto
+# Esperado: 201 Created
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Producto CRUD Test",
+  "descripcion": "Producto creado para prueba de CRUD con REST Client",
+  "precio": 49.99
+}
+
+###
+# Esperado: 200 OK — consultar el producto creado
+GET {{baseUrl}}/api/productos/{{crearProducto.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 204 No Content — editar el producto creado
+PUT {{baseUrl}}/api/productos/{{crearProducto.response.body.$.id}}
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Producto CRUD Editado",
+  "descripcion": "Descripcion actualizada en prueba de edicion con REST Client",
+  "precio": 59.99
+}
+
+###
+# Esperado: 204 No Content — eliminar el producto
+DELETE {{baseUrl}}/api/productos/{{crearProducto.response.body.$.id}}
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+### ── USUARIOS ────────────────────────────────────────────────
+
+###
+# Esperado: 200 OK — lista de usuarios
+GET {{baseUrl}}/api/usuarios
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — consultar usuario Admin por email (ajusta email)
+GET {{baseUrl}}/api/usuarios/{{adminEmail}}
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 404 Not Found — usuario inexistente
+GET {{baseUrl}}/api/usuarios/noexiste@example.com
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+### ── BITÁCORA ─────────────────────────────────────────────────
+
+###
+# Esperado: 200 OK — últimas entradas de bitácora
+GET {{baseUrl}}/api/bitacora
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — bitácora filtrada por usuario
+GET {{baseUrl}}/api/bitacora?usuario={{adminEmail}}&orden=DESC&limit=10
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — bitácora filtrada por acción
+GET {{baseUrl}}/api/bitacora?accion=usuario.login
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}

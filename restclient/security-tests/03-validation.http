@@ -1,0 +1,307 @@
+### ============================================================
+### 03-validation.http — Validación de entradas del backend
+### ============================================================
+### Demuestra que el backend rechaza datos inválidos con 400/409.
+### Incluye intentos de XSS, campos prohibidos, formatos incorrectos.
+### ============================================================
+
+@baseUrl       = http://localhost:3000
+@adminEmail    = usuarioAdmin@example.com
+@adminPassword = 123456
+
+###
+# @name loginAdmin
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### ── CATEGORÍAS ──────────────────────────────────────────────
+
+###
+# Esperado: 201 Created — categoría válida
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "nombre": "Electronica de Prueba"
+}
+
+###
+# Esperado: 400 Bad Request — nombre ausente
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{}
+
+###
+# Esperado: 400 Bad Request — nombre demasiado corto (1 carácter)
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "nombre": "X"
+}
+
+###
+# Esperado: 400 Bad Request — nombre contiene caracteres no permitidos (<script>)
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "nombre": "<script>alert('xss')</script>"
+}
+
+###
+# Esperado: 400 Bad Request — campo protegida no está permitido
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "nombre": "Categoria Valid",
+  "protegida": true
+}
+
+###
+# Esperado: 400 Bad Request — campo id no está permitido
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "id": 99,
+  "nombre": "Categoria con id"
+}
+
+### ── PRODUCTOS ────────────────────────────────────────────────
+
+###
+# Esperado: 201 Created — producto válido
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Producto de Prueba REST",
+  "descripcion": "Descripcion valida para prueba automatizada con REST Client",
+  "precio": 199.99
+}
+
+###
+# Esperado: 400 Bad Request — precio negativo
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Producto Precio Malo",
+  "descripcion": "Descripcion valida suficientemente larga",
+  "precio": -10
+}
+
+###
+# Esperado: 400 Bad Request — precio cero
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Precio Cero Test",
+  "descripcion": "Descripcion valida suficientemente larga",
+  "precio": 0
+}
+
+###
+# Esperado: 400 Bad Request — título vacío
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "",
+  "descripcion": "Descripcion valida suficientemente larga",
+  "precio": 10.00
+}
+
+###
+# Esperado: 400 Bad Request — descripción demasiado corta (< 5 chars)
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Producto Desc Corta",
+  "descripcion": "abc",
+  "precio": 10.00
+}
+
+###
+# Esperado: 400 Bad Request — título con caracteres no permitidos (<>)
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "<b>Titulo XSS</b>",
+  "descripcion": "Descripcion valida suficientemente larga",
+  "precio": 10.00
+}
+
+###
+# Esperado: 400 Bad Request — campo categorias no permitido en este endpoint
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Producto con Categorias",
+  "descripcion": "Descripcion valida suficientemente larga",
+  "precio": 10.00,
+  "categorias": [1, 2]
+}
+
+### ── USUARIOS ────────────────────────────────────────────────
+
+###
+# Esperado: 201 Created — usuario válido (ajusta email si ya existe)
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "email": "nuevo.usuario.prueba@example.com",
+  "password": "NuevoPass123*",
+  "nombre": "Usuario de Prueba",
+  "rol": "Usuario"
+}
+
+###
+# Esperado: 400 Bad Request — email inválido
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "email": "no-es-un-email",
+  "password": "NuevoPass123",
+  "nombre": "Usuario Invalido",
+  "rol": "Usuario"
+}
+
+###
+# Esperado: 400 Bad Request — contraseña sin mayúscula
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "email": "test.weak@example.com",
+  "password": "sinmayuscula123",
+  "nombre": "Usuario Pass Debil",
+  "rol": "Usuario"
+}
+
+###
+# Esperado: 400 Bad Request — contraseña sin número
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "email": "test.nonumber@example.com",
+  "password": "SinNumeroEnPass",
+  "nombre": "Usuario Sin Numero",
+  "rol": "Usuario"
+}
+
+###
+# Esperado: 400 Bad Request — campo id no permitido
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "id": "uuid-inventado",
+  "email": "test.id@example.com",
+  "password": "Pass123valido",
+  "nombre": "Usuario Con Id",
+  "rol": "Usuario"
+}
+
+###
+# Esperado: 400 Bad Request — campo passwordhash no permitido
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "email": "test.hash@example.com",
+  "password": "Pass123valido",
+  "passwordhash": "$2b$12$malintent",
+  "nombre": "Usuario Con Hash",
+  "rol": "Usuario"
+}
+
+###
+# Esperado: 400 Bad Request — campo rolid no permitido
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "email": "test.rolid@example.com",
+  "password": "Pass123valido",
+  "nombre": "Usuario Con Rolid",
+  "rol": "Usuario",
+  "rolid": "uuid-de-rol-inventado"
+}
+
+### ── PAGINACIÓN ──────────────────────────────────────────────
+
+###
+# Esperado: 400 Bad Request — page no es entero positivo
+GET {{baseUrl}}/api/categorias?page=-1
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 400 Bad Request — limit fuera de rango
+GET {{baseUrl}}/api/categorias?limit=999
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 400 Bad Request — page no numérico
+GET {{baseUrl}}/api/productos?page=abc
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}

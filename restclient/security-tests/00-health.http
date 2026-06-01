@@ -1,0 +1,35 @@
+### ============================================================
+### 00-health.http — Health check y disponibilidad del servidor
+### ============================================================
+### No requiere autenticación.
+### Ejecutar primero para confirmar que el servidor levantó.
+### ============================================================
+
+@baseUrl = http://localhost:3000
+
+###
+# Esperado: 200 OK — { "status": "ok", "service": "backendnode", "uptime": ..., "timestamp": ... }
+GET {{baseUrl}}/health
+Accept: application/json
+
+###
+# Esperado: 200 OK — conexión a BD activa
+# Esperado: 503 Service Unavailable — si la BD no responde
+GET {{baseUrl}}/health/db
+Accept: application/json
+
+###
+# Esperado: 200 OK — { "mensaje": "API disponible" }
+GET {{baseUrl}}/
+Accept: application/json
+
+###
+# Esperado: 404 Not Found — ruta inexistente, servidor responde correctamente
+GET {{baseUrl}}/ruta-que-no-existe
+Accept: application/json
+
+###
+# Confirmación post-prueba: el servidor sigue respondiendo después del 404
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+Accept: application/json

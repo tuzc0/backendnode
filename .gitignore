@@ -38,10 +38,6 @@ pnpm-debug.log*
 # SonarQube / SonarScanner
 .scannerwork/
 
-# REST Client / pruebas manuales con posibles tokens
-restclient/
-*.http
-
 # REST Client — archivo de entorno local con credenciales de prueba (nunca subir)
 restclient/security-tests/security-tests.env
 restclient/**/*.env
