@@ -35,14 +35,16 @@ async function safeBitacora(req, action, id) {
 
     try {
         await req.bitacora(action, id);
-    } catch (_error) {
-        // La bitácora no debe romper el flujo principal.
+    } catch (error) {
+        console.error('No se pudo registrar la acción en bitácora:', error.message);
     }
 }
 
 
 const asyncHandler = (fn) => (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
+    return Promise.resolve(fn(req, res, next)).catch((error) => {
+        next(error);
+    });
 };
 
 module.exports = {

@@ -32,7 +32,6 @@ function getSafeStatusCode(statusCode) {
     return parsedCode;
 }
 
-// Crea el directorio de logs al iniciar. recursive:true es no-op si ya existe.
 fs.promises.mkdir(LOG_DIR, { recursive: true }).catch((err) => {
     console.error('No se pudo crear el directorio de log:', err.message);
 });
@@ -45,8 +44,10 @@ const errorHandler = (err, req, res, next) => {
 
     let email = 'Anónimo';
 
-    if (req.decodedToken && req.decodedToken[ClaimTypes.Name]) {
-        email = sanitizeLogValue(req.decodedToken[ClaimTypes.Name]);
+    const tokenEmail = req?.decodedToken?.[ClaimTypes.Name];
+
+    if (tokenEmail) {
+        email = sanitizeLogValue(tokenEmail);
     }
 
     const errorMessage = sanitizeLogValue(err.message || genericMessage);
@@ -55,7 +56,6 @@ const errorHandler = (err, req, res, next) => {
 
     const logLine = `${new Date().toISOString()} - ${statusCode} - ${ip} - ${email} - ${method} ${url} - ${errorMessage}\n`;
 
-    // Fire-and-forget: un fallo de log nunca interrumpe la respuesta HTTP al cliente.
     fs.promises.appendFile(LOG_FILE, logLine).catch(() => {
         console.error('No se pudo escribir en el archivo de log.');
     });

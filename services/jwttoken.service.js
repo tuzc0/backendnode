@@ -1,7 +1,7 @@
 'use strict';
 
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const ClaimTypes = require('../config/claimtypes');
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -13,7 +13,7 @@ const JWT_ALGORITHM = 'HS256';
 const MIN_SECRET_LENGTH = 32;
 const MAX_TOKEN_LENGTH = 4096;
 
-const ALLOWED_ROLES = ['Administrador', 'Usuario'];
+const ALLOWED_ROLES = new Set(['Administrador', 'Usuario']);
 
 if (!JWT_SECRET || JWT_SECRET.length < MIN_SECRET_LENGTH) {
   throw new Error(
@@ -37,7 +37,7 @@ function isValidEmail(email) {
 }
 
 function isValidRole(role) {
-  return isNonEmptyString(role) && ALLOWED_ROLES.includes(role.trim());
+  return isNonEmptyString(role) && ALLOWED_ROLES.has(role.trim());
 }
 
 function getBearerToken(req) {
@@ -75,6 +75,22 @@ function verifyToken(token) {
   });
 }
 
+function verifyTokenOrNull(token) {
+  try {
+    return verifyToken(token);
+  } catch (error) {
+    if (
+      error instanceof jwt.TokenExpiredError ||
+      error instanceof jwt.JsonWebTokenError ||
+      error instanceof jwt.NotBeforeError
+    ) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 const GeneraToken = (email, nombre, rol) => {
   if (!isValidEmail(email)) {
     throw new Error('Email inválido para generar token.');
@@ -108,33 +124,29 @@ const GeneraToken = (email, nombre, rol) => {
 };
 
 const TiempoRestanteToken = (req) => {
-  try {
-    const token = getBearerToken(req);
+  const token = getBearerToken(req);
 
-    if (!token) {
-      return null;
-    }
-
-    const decodedToken = verifyToken(token);
-
-    if (!decodedToken || typeof decodedToken.exp !== 'number') {
-      return null;
-    }
-
-    const remainingSeconds = Math.max(
-      0,
-      Math.floor(decodedToken.exp - Date.now() / 1000)
-    );
-
-    const minutos = Math.floor(remainingSeconds / 60);
-    const segundos = remainingSeconds % 60;
-
-    return `${minutos.toString().padStart(2, '0')}:${segundos
-      .toString()
-      .padStart(2, '0')}`;
-  } catch (error) {
+  if (!token) {
     return null;
   }
+
+  const decodedToken = verifyTokenOrNull(token);
+
+  if (!decodedToken || typeof decodedToken.exp !== 'number') {
+    return null;
+  }
+
+  const remainingSeconds = Math.max(
+    0,
+    Math.floor(decodedToken.exp - Date.now() / 1000)
+  );
+
+  const minutos = Math.floor(remainingSeconds / 60);
+  const segundos = remainingSeconds % 60;
+
+  return `${minutos.toString().padStart(2, '0')}:${segundos
+    .toString()
+    .padStart(2, '0')}`;
 };
 
 module.exports = {

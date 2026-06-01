@@ -1,8 +1,8 @@
 'use strict';
 
-const fs = require('fs').promises;
-const path = require('path');
-const crypto = require('crypto');
+const fs = require('node:fs').promises;
+const path = require('node:path');
+const crypto = require('node:crypto');
 const multer = require('multer');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
@@ -10,12 +10,12 @@ const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
 const JPEG_HEADER = [0xff, 0xd8, 0xff];
 const JPEG_FOOTER = [0xff, 0xd9];
 
-const ALLOWED_MIME_TYPES = ['image/jpeg'];
-const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg'];
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg']);
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg']);
 
 (async () => {
     try {
-        await require('fs').promises.mkdir(UPLOAD_DIR, { recursive: true });
+        await require('node:fs').promises.mkdir(UPLOAD_DIR, { recursive: true });
     } catch (err) {
         console.error('Error creando directorio de uploads:', err);
     }
@@ -31,8 +31,8 @@ const getExtension = (name) => path.extname(name || '').toLowerCase();
 
 const fileFilter = (req, file, cb) => {
     const extension = getExtension(file.originalname);
-    const isMimeValid = ALLOWED_MIME_TYPES.includes(file.mimetype);
-    const isExtValid = ALLOWED_EXTENSIONS.includes(extension);
+    const isMimeValid = ALLOWED_MIME_TYPES.has(file.mimetype);
+    const isExtValid = ALLOWED_EXTENSIONS.has(extension);
 
     if (!isMimeValid || !isExtValid) {
         return cb(createUploadError('Solo se permiten imágenes formato JPG/JPEG.'));
@@ -51,6 +51,14 @@ const upload = multer({
     limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1, fields: 5 }
 });
 
+const removeUploadedFile = async (filePath) => {
+    try {
+        await fs.unlink(filePath);
+    } catch (error) {
+        console.error('Error eliminando archivo temporal:', error);
+    }
+};
+
 const validateJpegSignature = async (req, res, next) => {
     if (!req.file) return next();
 
@@ -58,19 +66,20 @@ const validateJpegSignature = async (req, res, next) => {
 
     try {
         const buffer = await fs.readFile(filePath);
-        
+
         const startsWithHeader = JPEG_HEADER.every((byte, index) => buffer[index] === byte);
         const endsWithFooter = JPEG_FOOTER.every((byte, index) => buffer[buffer.length - JPEG_FOOTER.length + index] === byte);
 
         if (!startsWithHeader || !endsWithFooter) {
-            await fs.unlink(filePath);
+            await removeUploadedFile(filePath);
             return next(createUploadError('El archivo no es una imagen JPG válida.'));
         }
 
-        next();
+        return next();
     } catch (error) {
-        if (req.file) await fs.unlink(filePath).catch(() => {});
-        next(createUploadError('Error interno procesando la imagen.'));
+        await removeUploadedFile(filePath);
+        console.error('Error validando la imagen JPG:', error);
+        return next(createUploadError('Error interno procesando la imagen.', 500));
     }
 };
 

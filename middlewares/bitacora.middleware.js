@@ -31,8 +31,11 @@ const bitacoraLogger = (req, res, next) => {
             const ip = sanitizeValue(rawIp, MAX_LENGTH_IP);
 
             let email = DEFAULT_USER;
-            if (req.decodedToken && req.decodedToken[ClaimTypes.Name]) {
-                email = sanitizeValue(req.decodedToken[ClaimTypes.Name], MAX_LENGTH_EMAIL);
+            
+            const tokenEmail = req?.decodedToken?.[ClaimTypes.Name];
+
+            if (tokenEmail) {
+                email = sanitizeValue(tokenEmail, MAX_LENGTH_EMAIL);
             }
 
             const safeAction = sanitizeValue(action, MAX_LENGTH_ACTION);

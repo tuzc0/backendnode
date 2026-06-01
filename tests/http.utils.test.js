@@ -66,8 +66,23 @@ describe('utils/http.js', () => {
         });
 
         it('no lanza si bitacora rechaza la promesa', async () => {
-            const req = { bitacora: jest.fn().mockRejectedValue(new Error('DB error')) };
-            await expect(safeBitacora(req, 'accion', '1')).resolves.toBeUndefined();
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+            
+            try {
+                const req = {
+                    bitacora: jest.fn().mockRejectedValue(new Error('DB error'))
+                };
+                
+                await expect(safeBitacora(req, 'accion', '1')).resolves.toBeUndefined();
+                
+                expect(req.bitacora).toHaveBeenCalledWith('accion', '1');
+                expect(consoleSpy).toHaveBeenCalledWith(
+                    'No se pudo registrar la acción en bitácora:',
+                    'DB error'
+                );
+            } finally {
+            consoleSpy.mockRestore();
+            }
         });
 
         it('no lanza si req es null', async () => {
