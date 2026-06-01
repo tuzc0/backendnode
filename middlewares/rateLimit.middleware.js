@@ -115,8 +115,19 @@ const apiRateLimit = (req, res, next) => {
     return next()
 }
 
-const REGISTRO_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
-const REGISTRO_RATE_LIMIT_MAX_REQUESTS = 10
+const parsePositiveInt = (value, defaultValue) => {
+    const n = parseInt(value, 10)
+    return Number.isInteger(n) && n > 0 ? n : defaultValue
+}
+
+const REGISTRO_RATE_LIMIT_WINDOW_MS = parsePositiveInt(
+    process.env.REGISTRO_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+)
+const REGISTRO_RATE_LIMIT_MAX_REQUESTS = parsePositiveInt(
+    process.env.REGISTRO_RATE_LIMIT_MAX_REQUESTS,
+    10
+)
 const registroAttemptsByIp = new Map()
 
 const cleanupRegistroAttempts = () => {
