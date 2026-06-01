@@ -1,6 +1,6 @@
 'use strict';
 
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const Authorize = require('../middlewares/auth.middleware');
 const { GeneraToken } = require('../services/jwttoken.service');
 const jwt = require('jsonwebtoken');

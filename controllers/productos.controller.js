@@ -316,7 +316,7 @@ self.update = async function (req, res, next) {
             precio
         };
 
-        if (Object.prototype.hasOwnProperty.call(req.body, 'archivoid')) {
+        if (Object.hasOwn(req.body, 'archivoid')) {
             const archivoid = normalizeOptionalInteger(req.body.archivoid, 'archivoid');
             await validateArchivoExists(archivoid);
             updateData.archivoid = archivoid;

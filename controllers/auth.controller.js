@@ -162,22 +162,22 @@ const getOptionalUserAttributes = () => {
 }
 
 const isUserAllowedToLogin = (userData) => {
-    if (!userData) return false
+    if (!userData) return false;
 
-    if (Object.prototype.hasOwnProperty.call(userData, 'activo') && userData.activo === false) {
-        return false
+    if (Object.hasOwn(userData, 'activo') && userData.activo === false) {
+        return false;
     }
 
-    if (Object.prototype.hasOwnProperty.call(userData, 'bloqueado') && userData.bloqueado === true) {
-        return false
+    if (Object.hasOwn(userData, 'bloqueado') && userData.bloqueado === true) {
+        return false;
     }
 
-    if (Object.prototype.hasOwnProperty.call(userData, 'deletedAt') && userData.deletedAt !== null) {
-        return false
+    if (Object.hasOwn(userData, 'deletedAt') && userData.deletedAt !== null) {
+        return false;
     }
 
-    return true
-}
+    return true;
+};
 
 // POST: api/auth
 self.login = async function (req, res, next) {

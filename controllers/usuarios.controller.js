@@ -23,8 +23,10 @@ function normalizeEmail(value) {
 }
 
 function getCurrentUserEmail(req) {
-    if (req.decodedToken && req.decodedToken[ClaimTypes.Name]) {
-        return normalizeEmail(req.decodedToken[ClaimTypes.Name]);
+    const email = req?.decodedToken?.[ClaimTypes.Name];
+
+    if (email) {
+        return normalizeEmail(email);
     }
 
     return null;
@@ -35,15 +37,7 @@ function getRoleName(userData) {
         ? userData.get({ plain: true })
         : userData;
 
-    if (plain.rol && plain.rol.nombre) {
-        return plain.rol.nombre;
-    }
-
-    if (plain['rol.nombre']) {
-        return plain['rol.nombre'];
-    }
-
-    return null;
+    return plain.rol?.nombre ?? plain['rol.nombre'] ?? null;
 }
 
 function sanitizeUsuarioOutput(userData) {
@@ -127,7 +121,7 @@ self.usuarioCreateValidator = [
         .matches(/[A-Z]/)
         .withMessage('La contraseña debe tener al menos una mayúscula.')
         .bail()
-        .matches(/[0-9]/)
+        .matches(/[/d]]/)
         .withMessage('La contraseña debe tener al menos un número.'),
 
     body('nombre')
@@ -183,7 +177,7 @@ self.usuarioUpdateValidator = [
         .matches(/[A-Z]/)
         .withMessage('La contraseña debe tener al menos una mayúscula.')
         .bail()
-        .matches(/[0-9]/)
+        .matches(/\d/)
         .withMessage('La contraseña debe tener al menos un número.'),
 
     body('nombre')
