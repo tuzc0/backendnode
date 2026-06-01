@@ -29,6 +29,15 @@ build/
 Thumbs.db
 desktop.ini
 
+# Logs de gestores de paquetes
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# SonarQube / SonarScanner
+.scannerwork/
+
 # REST Client / pruebas manuales con posibles tokens
 restclient/
 *.http
