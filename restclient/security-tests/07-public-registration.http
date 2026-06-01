@@ -1,0 +1,312 @@
+### ============================================================
+### 07-public-registration.http — Registro público de cuenta
+### ============================================================
+### Endpoint: POST /api/auth/registro  (público, sin JWT)
+### ============================================================
+### ANTES DE EJECUTAR:
+###   - El servidor debe estar corriendo en {{baseUrl}}
+###   - Las pruebas de creación exitosa crean usuarios reales.
+###     Limpia la BD entre ejecuciones o usa emails distintos.
+###   - Nunca uses datos reales ni de producción.
+### ============================================================
+@baseUrl = http://localhost:3000
+
+### ── CASO FELIZ ──────────────────────────────────────────────
+
+###
+# Esperado: 201 Created — { id, email, nombre, rol: "Usuario" }
+# El rol siempre es "Usuario" sin importar lo que envíe el cliente.
+# @name registroExitoso
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "nuevo.usuario@example.com",
+  "nombre": "Juan Pérez",
+  "password": "Segura123"
+}
+
+### ── EMAIL DUPLICADO ─────────────────────────────────────────
+
+###
+# Esperado: 409 Conflict — { mensaje: "Ya existe una cuenta con ese correo." }
+# Ejecutar después del caso exitoso para el mismo email.
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "nuevo.usuario@example.com",
+  "nombre": "Otra Persona",
+  "password": "OtraPass456"
+}
+
+### ── INTENTO DE ESCALADA DE ROL ──────────────────────────────
+
+###
+# Esperado: 400 Bad Request — no está permitido enviar el campo rol.
+# El backend debe rechazar el body, no ignorar silenciosamente el campo.
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "hacker@example.com",
+  "nombre": "Atacante",
+  "password": "Ataque123",
+  "rol": "Administrador"
+}
+
+###
+# Esperado: 400 Bad Request — no está permitido enviar rolid.
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "hacker2@example.com",
+  "nombre": "Atacante2",
+  "password": "Ataque456",
+  "rolid": "uuid-del-rol-admin"
+}
+
+###
+# Esperado: 400 Bad Request — no está permitido enviar id.
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "hacker3@example.com",
+  "nombre": "Atacante3",
+  "password": "Ataque789",
+  "id": "uuid-fijo-elegido"
+}
+
+### ── VALIDACIÓN — CAMPOS FALTANTES ──────────────────────────
+
+###
+# Esperado: 400 Bad Request — email obligatorio
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "nombre": "Sin Email",
+  "password": "Password123"
+}
+
+###
+# Esperado: 400 Bad Request — nombre obligatorio
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "sinnombre@example.com",
+  "password": "Password123"
+}
+
+###
+# Esperado: 400 Bad Request — contraseña obligatoria
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "sinpass@example.com",
+  "nombre": "Sin Password"
+}
+
+###
+# Esperado: 400 Bad Request — body vacío
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{}
+
+### ── VALIDACIÓN — CONTRASEÑA DÉBIL ──────────────────────────
+
+###
+# Esperado: 400 Bad Request — contraseña muy corta (< 8 chars)
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "test1@example.com",
+  "nombre": "Test Uno",
+  "password": "Ab1"
+}
+
+###
+# Esperado: 400 Bad Request — sin mayúscula
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "test2@example.com",
+  "nombre": "Test Dos",
+  "password": "sinmayuscula1"
+}
+
+###
+# Esperado: 400 Bad Request — sin minúscula
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "test3@example.com",
+  "nombre": "Test Tres",
+  "password": "SINMINUSCULA1"
+}
+
+###
+# Esperado: 400 Bad Request — sin número
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "test4@example.com",
+  "nombre": "Test Cuatro",
+  "password": "SinNumeroAqui"
+}
+
+###
+# Esperado: 400 Bad Request — contraseña demasiado larga (> 72 chars)
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "test5@example.com",
+  "nombre": "Test Cinco",
+  "password": "Aa1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+
+### ── VALIDACIÓN — EMAIL INVÁLIDO ─────────────────────────────
+
+###
+# Esperado: 400 Bad Request — email sin formato válido
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "no-es-email",
+  "nombre": "Test Email",
+  "password": "Password123"
+}
+
+###
+# Esperado: 400 Bad Request — email demasiado largo (> 150 chars)
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com",
+  "nombre": "Test Largo",
+  "password": "Password123"
+}
+
+### ── VALIDACIÓN — NOMBRE INVÁLIDO ────────────────────────────
+
+###
+# Esperado: 400 Bad Request — nombre muy corto (< 2 chars)
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "test6@example.com",
+  "nombre": "A",
+  "password": "Password123"
+}
+
+###
+# Esperado: 400 Bad Request — nombre con caracteres no permitidos
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "test7@example.com",
+  "nombre": "<script>alert(1)</script>",
+  "password": "Password123"
+}
+
+### ── CONTENT-TYPE INCORRECTO ─────────────────────────────────
+
+###
+# Esperado: 415 Unsupported Media Type
+POST {{baseUrl}}/api/auth/registro
+Content-Type: text/plain
+Accept: application/json
+
+email=test@example.com&nombre=Test&password=Password123
+
+### ── MÉTODO NO PERMITIDO ──────────────────────────────────────
+
+###
+# Esperado: 405 Method Not Allowed
+GET {{baseUrl}}/api/auth/registro
+Accept: application/json
+
+###
+# Esperado: 405 Method Not Allowed
+PUT {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "test@example.com"
+}
+
+### ── VERIFICAR QUE EL USUARIO REGISTRADO PUEDE INICIAR SESIÓN ─
+
+###
+# Paso 1: registrar un usuario nuevo para la verificación de login
+# @name registroParaLogin
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "verificar.login@example.com",
+  "nombre": "Verificar Login",
+  "password": "LoginTest123"
+}
+
+###
+# Paso 2: iniciar sesión con el usuario recién registrado
+# Esperado: 200 OK — { email, nombre, rol: "Usuario", jwt }
+# El campo rol debe ser "Usuario", nunca "Administrador".
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "verificar.login@example.com",
+  "password": "LoginTest123"
+}
+
+### ── VERIFICAR QUE EL ENDPOINT NO REQUIERE JWT ───────────────
+
+###
+# Esperado: 201 Created — el endpoint es público, sin Authorization header
+# Si esto devuelve 401, el endpoint quedó protegido incorrectamente.
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "sin.token@example.com",
+  "nombre": "Sin Token",
+  "password": "SinToken123"
+}

@@ -3,7 +3,7 @@
 const router = require('express').Router()
 const auth = require('../controllers/auth.controller')
 const Authorize = require('../middlewares/auth.middleware')
-const { loginRateLimit } = require('../middlewares/rateLimit.middleware')
+const { loginRateLimit, registroRateLimit } = require('../middlewares/rateLimit.middleware')
 
 const ROLES = Object.freeze({
     USUARIO: 'Usuario',
@@ -86,6 +86,17 @@ router
         requireJsonContentType,
         validateLoginBody,
         asyncHandler(auth.login)
+    )
+    .all(methodNotAllowed)
+
+// POST: api/auth/registro
+router
+    .route('/registro')
+    .post(
+        registroRateLimit,
+        requireJsonContentType,
+        auth.registroPublicoValidator,
+        asyncHandler(auth.registro)
     )
     .all(methodNotAllowed)
 
