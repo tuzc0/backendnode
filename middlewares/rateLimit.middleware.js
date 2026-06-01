@@ -115,7 +115,55 @@ const apiRateLimit = (req, res, next) => {
     return next()
 }
 
+const REGISTRO_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
+const REGISTRO_RATE_LIMIT_MAX_REQUESTS = 10
+const registroAttemptsByIp = new Map()
+
+const cleanupRegistroAttempts = () => {
+    if (registroAttemptsByIp.size <= MAX_ATTEMPT_RECORDS) return
+
+    const now = Date.now()
+
+    for (const [ip, record] of registroAttemptsByIp.entries()) {
+        if (record.resetAt <= now) {
+            registroAttemptsByIp.delete(ip)
+        }
+
+        if (registroAttemptsByIp.size <= MAX_ATTEMPT_RECORDS) break
+    }
+}
+
+const registroRateLimit = (req, res, next) => {
+    cleanupRegistroAttempts()
+
+    const ip = getClientIp(req)
+    const now = Date.now()
+
+    const record = registroAttemptsByIp.get(ip) || {
+        count: 0,
+        resetAt: now + REGISTRO_RATE_LIMIT_WINDOW_MS
+    }
+
+    if (record.resetAt <= now) {
+        record.count = 0
+        record.resetAt = now + REGISTRO_RATE_LIMIT_WINDOW_MS
+    }
+
+    record.count += 1
+    registroAttemptsByIp.set(ip, record)
+
+    if (record.count > REGISTRO_RATE_LIMIT_MAX_REQUESTS) {
+        res.set('Retry-After', Math.ceil((record.resetAt - now) / 1000))
+        return res.status(429).json({
+            mensaje: 'Demasiadas solicitudes. Intente nuevamente más tarde.'
+        })
+    }
+
+    return next()
+}
+
 module.exports = {
     loginRateLimit,
-    apiRateLimit
+    apiRateLimit,
+    registroRateLimit
 }

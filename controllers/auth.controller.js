@@ -2,10 +2,11 @@
 
 const bcrypt = require('bcrypt')
 const crypto = require('node:crypto')
-const { usuario, rol, Sequelize } = require('../models')
+const { body } = require('express-validator')
+const { usuario, rol, Sequelize, sequelize } = require('../models')
 const { GeneraToken, TiempoRestanteToken } = require('../services/jwttoken.service')
-const { setNoCacheHeaders } = require('../utils/http')
-const { isNonEmptyString } = require('../utils/validators')
+const { setNoCacheHeaders, createHttpError, safeBitacora } = require('../utils/http')
+const { isNonEmptyString, validateRequest, normalizeText } = require('../utils/validators')
 
 let self = {}
 
@@ -20,6 +21,8 @@ const MAX_ATTEMPT_RECORDS = 1000
 
 const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 12)
 const FAKE_PASSWORD_HASH = bcrypt.hashSync(crypto.randomUUID(), BCRYPT_SALT_ROUNDS)
+
+const USUARIO_ROLE_NAME = 'Usuario'
 
 const loginAttempts = new Map()
 
@@ -267,6 +270,116 @@ self.tiempo = async function (req, res, next) {
         }
 
         return res.status(200).send(tiempo)
+    } catch (error) {
+        return next(error)
+    }
+}
+
+self.registroPublicoValidator = [
+    body('email')
+        .exists({ checkFalsy: true })
+        .withMessage('El email es obligatorio.')
+        .bail()
+        .isEmail()
+        .withMessage('El email no tiene un formato válido.')
+        .bail()
+        .isLength({ max: 150 })
+        .withMessage('El email no debe superar 150 caracteres.'),
+
+    body('password')
+        .exists({ checkFalsy: true })
+        .withMessage('La contraseña es obligatoria.')
+        .bail()
+        .isString()
+        .withMessage('La contraseña debe ser texto.')
+        .bail()
+        .isLength({ min: 8, max: 72 })
+        .withMessage('La contraseña debe tener entre 8 y 72 caracteres.')
+        .bail()
+        .matches(/[a-z]/)
+        .withMessage('La contraseña debe tener al menos una minúscula.')
+        .bail()
+        .matches(/[A-Z]/)
+        .withMessage('La contraseña debe tener al menos una mayúscula.')
+        .bail()
+        .matches(/\d/)
+        .withMessage('La contraseña debe tener al menos un número.'),
+
+    body('nombre')
+        .exists({ checkFalsy: true })
+        .withMessage('El nombre es obligatorio.')
+        .bail()
+        .isString()
+        .withMessage('El nombre debe ser texto.')
+        .bail()
+        .trim()
+        .isLength({ min: 2, max: 120 })
+        .withMessage('El nombre debe tener entre 2 y 120 caracteres.')
+        .bail()
+        .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.'-]+$/)
+        .withMessage('El nombre contiene caracteres no permitidos.'),
+
+    body('rol').not().exists().withMessage('No está permitido enviar el campo rol.'),
+    body('id').not().exists().withMessage('No está permitido enviar id.'),
+    body('passwordhash').not().exists().withMessage('No está permitido enviar passwordhash.'),
+    body('rolid').not().exists().withMessage('No está permitido enviar rolid.'),
+    body('protegido').not().exists().withMessage('No está permitido enviar protegido.')
+]
+
+// POST: api/auth/registro
+self.registro = async function (req, res, next) {
+    try {
+        validateRequest(req)
+
+        const email = normalizeEmail(req.body.email)
+        const nombre = normalizeText(req.body.nombre)
+        const password = req.body.password
+
+        const roleData = await rol.findOne({
+            where: { nombre: USUARIO_ROLE_NAME },
+            attributes: ['id', 'nombre']
+        })
+
+        if (!roleData) {
+            return next(createHttpError(500, 'Error interno al procesar la solicitud.'))
+        }
+
+        const exists = await usuario.findOne({
+            where: { email: email },
+            attributes: ['id']
+        })
+
+        if (exists) {
+            await safeBitacora(req, 'usuario.registro.duplicado', email)
+            return res.status(409).json({
+                mensaje: 'Ya existe una cuenta con ese correo.'
+            })
+        }
+
+        const passwordhash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS)
+
+        const newUser = await sequelize.transaction(async (transaction) => {
+            return await usuario.create(
+                {
+                    id: crypto.randomUUID(),
+                    email: email,
+                    passwordhash: passwordhash,
+                    nombre: nombre,
+                    rolid: roleData.id,
+                    protegido: false
+                },
+                { transaction }
+            )
+        })
+
+        await safeBitacora(req, 'usuario.registro.exitoso', newUser.email)
+
+        return res.status(201).json({
+            id: newUser.id,
+            email: newUser.email,
+            nombre: newUser.nombre,
+            rol: roleData.nombre
+        })
     } catch (error) {
         return next(error)
     }
