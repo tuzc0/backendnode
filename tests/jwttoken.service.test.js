@@ -1,7 +1,10 @@
 'use strict';
 
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { GeneraToken, TiempoRestanteToken } = require('../services/jwttoken.service');
+
+const WRONG_JWT_SECRET = crypto.randomBytes(32).toString('hex');
 
 const EMAIL   = 'usuario@example.com';
 const NOMBRE  = 'Usuario Prueba';
@@ -66,7 +69,7 @@ describe('services/jwttoken.service.js', () => {
         });
 
         it('retorna null con firma incorrecta', () => {
-            const badToken = jwt.sign({ sub: 'x' }, 'otra-clave-secreta-completamente-diferente', { expiresIn: '1h' });
+            const badToken = jwt.sign({ sub: 'x' }, WRONG_JWT_SECRET, { expiresIn: '1h' });
             expect(TiempoRestanteToken(makeReq(badToken))).toBeNull();
         });
 

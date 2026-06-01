@@ -54,7 +54,7 @@ async function safeBitacora(req, action, id) {
  * Útil en rutas que no usan Express 5 automáticamente o para claridad explícita.
  */
 const asyncHandler = (fn) => (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
+    return Promise.resolve(fn(req, res, next)).catch(next);
 };
 
 module.exports = {

@@ -1,8 +1,11 @@
 'use strict';
 
+const crypto = require('crypto');
 const Authorize = require('../middlewares/auth.middleware');
 const { GeneraToken } = require('../services/jwttoken.service');
 const jwt = require('jsonwebtoken');
+
+const WRONG_JWT_SECRET = crypto.randomBytes(32).toString('hex');
 
 const EMAIL  = 'admin@example.com';
 const NOMBRE = 'Admin Prueba';
@@ -47,7 +50,7 @@ describe('middlewares/auth.middleware.js (Authorize)', () => {
         });
 
         it('responde 401 con firma incorrecta', async () => {
-            const badToken = jwt.sign({ sub: 'test' }, 'clave-incorrecta-incorrecta-incorrecta-xx', { expiresIn: '1h' });
+            const badToken = jwt.sign({ sub: 'test' }, WRONG_JWT_SECRET, { expiresIn: '1h' });
             const res = mockRes();
             await Authorize(['Usuario'])(makeReq(badToken), res, jest.fn());
             expect(res.status).toHaveBeenCalledWith(401);
