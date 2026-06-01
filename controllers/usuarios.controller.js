@@ -121,7 +121,7 @@ self.usuarioCreateValidator = [
         .matches(/[A-Z]/)
         .withMessage('La contraseña debe tener al menos una mayúscula.')
         .bail()
-        .matches(/[/d]]/)
+        .matches(/\d/)
         .withMessage('La contraseña debe tener al menos un número.'),
 
     body('nombre')

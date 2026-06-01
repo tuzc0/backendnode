@@ -42,6 +42,11 @@ pnpm-debug.log*
 restclient/
 *.http
 
+# REST Client — archivo de entorno local con credenciales de prueba (nunca subir)
+restclient/security-tests/security-tests.env
+restclient/**/*.env
+!restclient/**/*.env.example
+
 # Editores e IDEs
 .claude/
 .vscode/
