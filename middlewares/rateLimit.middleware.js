@@ -64,10 +64,6 @@ const loginRateLimit = (req, res, next) => {
     return next()
 }
 
-// apiRateLimit está preparado pero NO aplicado globalmente.
-// Para habilitarlo en producción, importar en index.js y usar:
-//   app.use('/api', apiRateLimit)
-// Se recomienda Redis como backend antes de habilitar esto en producción.
 const API_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
 const API_RATE_LIMIT_MAX_REQUESTS = 300
 const apiAttemptsByIp = new Map()
@@ -115,7 +111,69 @@ const apiRateLimit = (req, res, next) => {
     return next()
 }
 
+const parsePositiveInt = (value, defaultValue) => {
+    if (value === undefined || value === null || value === '') return defaultValue
+
+    const n = Number(value)
+
+    return Number.isInteger(n) && n > 0 ? n : defaultValue
+}
+
+const REGISTRO_RATE_LIMIT_WINDOW_MS = parsePositiveInt(
+    process.env.REGISTRO_RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000
+)
+const REGISTRO_RATE_LIMIT_MAX_REQUESTS = parsePositiveInt(
+    process.env.REGISTRO_RATE_LIMIT_MAX_REQUESTS,
+    10
+)
+const registroAttemptsByIp = new Map()
+
+const cleanupRegistroAttempts = () => {
+    if (registroAttemptsByIp.size <= MAX_ATTEMPT_RECORDS) return
+
+    const now = Date.now()
+
+    for (const [ip, record] of registroAttemptsByIp.entries()) {
+        if (record.resetAt <= now) {
+            registroAttemptsByIp.delete(ip)
+        }
+
+        if (registroAttemptsByIp.size <= MAX_ATTEMPT_RECORDS) break
+    }
+}
+
+const registroRateLimit = (req, res, next) => {
+    cleanupRegistroAttempts()
+
+    const ip = getClientIp(req)
+    const now = Date.now()
+
+    const record = registroAttemptsByIp.get(ip) || {
+        count: 0,
+        resetAt: now + REGISTRO_RATE_LIMIT_WINDOW_MS
+    }
+
+    if (record.resetAt <= now) {
+        record.count = 0
+        record.resetAt = now + REGISTRO_RATE_LIMIT_WINDOW_MS
+    }
+
+    record.count += 1
+    registroAttemptsByIp.set(ip, record)
+
+    if (record.count > REGISTRO_RATE_LIMIT_MAX_REQUESTS) {
+        res.set('Retry-After', Math.ceil((record.resetAt - now) / 1000))
+        return res.status(429).json({
+            mensaje: 'Demasiadas solicitudes. Intente nuevamente más tarde.'
+        })
+    }
+
+    return next()
+}
+
 module.exports = {
     loginRateLimit,
-    apiRateLimit
+    apiRateLimit,
+    registroRateLimit
 }
