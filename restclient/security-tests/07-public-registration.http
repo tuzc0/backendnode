@@ -11,8 +11,6 @@
 ### ============================================================
 @baseUrl = http://localhost:3000
 
-### ── CASO FELIZ ──────────────────────────────────────────────
-
 ###
 # Esperado: 201 Created — { id, email, nombre, rol: "Usuario" }
 # El rol siempre es "Usuario" sin importar lo que envíe el cliente.
@@ -27,8 +25,6 @@ Accept: application/json
   "password": "Segura123"
 }
 
-### ── EMAIL DUPLICADO ─────────────────────────────────────────
-
 ###
 # Esperado: 409 Conflict — { mensaje: "Ya existe una cuenta con ese correo." }
 # Ejecutar después del caso exitoso para el mismo email.
@@ -41,8 +37,6 @@ Accept: application/json
   "nombre": "Otra Persona",
   "password": "OtraPass456"
 }
-
-### ── INTENTO DE ESCALADA DE ROL ──────────────────────────────
 
 ###
 # Esperado: 400 Bad Request — no está permitido enviar el campo rol.
@@ -84,8 +78,6 @@ Accept: application/json
   "id": "uuid-fijo-elegido"
 }
 
-### ── VALIDACIÓN — CAMPOS FALTANTES ──────────────────────────
-
 ###
 # Esperado: 400 Bad Request — email obligatorio
 POST {{baseUrl}}/api/auth/registro
@@ -126,8 +118,6 @@ Content-Type: application/json
 Accept: application/json
 
 {}
-
-### ── VALIDACIÓN — CONTRASEÑA DÉBIL ──────────────────────────
 
 ###
 # Esperado: 400 Bad Request — contraseña muy corta (< 8 chars)
@@ -189,8 +179,6 @@ Accept: application/json
   "password": "Aa1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 
-### ── VALIDACIÓN — EMAIL INVÁLIDO ─────────────────────────────
-
 ###
 # Esperado: 400 Bad Request — email sin formato válido
 POST {{baseUrl}}/api/auth/registro
@@ -214,8 +202,6 @@ Accept: application/json
   "nombre": "Test Largo",
   "password": "Password123"
 }
-
-### ── VALIDACIÓN — NOMBRE INVÁLIDO ────────────────────────────
 
 ###
 # Esperado: 400 Bad Request — nombre muy corto (< 2 chars)
@@ -241,8 +227,6 @@ Accept: application/json
   "password": "Password123"
 }
 
-### ── CONTENT-TYPE INCORRECTO ─────────────────────────────────
-
 ###
 # Esperado: 415 Unsupported Media Type
 POST {{baseUrl}}/api/auth/registro
@@ -250,8 +234,6 @@ Content-Type: text/plain
 Accept: application/json
 
 email=test@example.com&nombre=Test&password=Password123
-
-### ── MÉTODO NO PERMITIDO ──────────────────────────────────────
 
 ###
 # Esperado: 405 Method Not Allowed
