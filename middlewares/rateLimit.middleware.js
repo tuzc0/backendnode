@@ -64,10 +64,6 @@ const loginRateLimit = (req, res, next) => {
     return next()
 }
 
-// apiRateLimit está preparado pero NO aplicado globalmente.
-// Para habilitarlo en producción, importar en index.js y usar:
-//   app.use('/api', apiRateLimit)
-// Se recomienda Redis como backend antes de habilitar esto en producción.
 const API_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
 const API_RATE_LIMIT_MAX_REQUESTS = 300
 const apiAttemptsByIp = new Map()
@@ -116,7 +112,10 @@ const apiRateLimit = (req, res, next) => {
 }
 
 const parsePositiveInt = (value, defaultValue) => {
-    const n = parseInt(value, 10)
+    if (value === undefined || value === null || value === '') return defaultValue
+
+    const n = Number(value)
+
     return Number.isInteger(n) && n > 0 ? n : defaultValue
 }
 
