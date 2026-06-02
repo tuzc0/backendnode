@@ -13,41 +13,25 @@ jest.mock('bcrypt', () => ({
     hashSync: jest.fn().mockReturnValue('$2b$04$fakehash_static')
 }));
 
-const bcrypt  = require('bcrypt');
+const bcrypt   = require('bcrypt');
 const { usuario, rol, sequelize } = require('../models');
-const auth    = require('../controllers/auth.controller');
+const auth     = require('../controllers/auth.controller');
 const { GeneraToken } = require('../services/jwttoken.service');
 const Authorize = require('../middlewares/auth.middleware');
-const crypto  = require('node:crypto');
+const crypto   = require('node:crypto');
+const { mockRes, makeLoginReq, makeAuthReq } = require('./helpers/test-utils');
 
+// IP único por test para evitar interferencia del brute-force por IP
 let ipCounter = 200;
 const makeTestIp = () => `10.1.0.${ipCounter++}`;
 
-const mockRes = () => {
-    const res = {};
-    res.status = jest.fn().mockReturnValue(res);
-    res.json   = jest.fn().mockReturnValue(res);
-    res.send   = jest.fn().mockReturnValue(res);
-    res.set    = jest.fn().mockReturnValue(res);
-    res.get    = jest.fn().mockReturnValue(null);
-    return res;
+const VALID_USER = {
+    id: 'uuid-1',
+    email: 'admin@example.com',
+    nombre: 'Admin Test',
+    passwordhash: '$2b$04$realhash',
+    rol: 'Administrador'
 };
-
-const makeLoginReq = (body = {}, ip = makeTestIp()) => ({
-    body,
-    headers: {},
-    ip,
-    socket: { remoteAddress: ip },
-    bitacora: jest.fn().mockResolvedValue(undefined),
-    decodedToken: null
-});
-
-const makeAuthReq = (token) => ({
-    header: (name) => name === 'Authorization' && token ? `Bearer ${token}` : undefined,
-    bitacora: jest.fn().mockResolvedValue(undefined),
-    ip: '127.0.0.1',
-    socket: { remoteAddress: '127.0.0.1' }
-});
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -57,49 +41,40 @@ beforeEach(() => {
 // ── Login: datos sensibles nunca expuestos ────────────────────────────────────
 
 describe('auth.controller.js — login no expone datos sensibles', () => {
-    const VALID_USER = {
-        id: 'uuid-1',
-        email: 'admin@example.com',
-        nombre: 'Admin Test',
-        passwordhash: '$2b$04$realhash',
-        rol: 'Administrador'
-    };
+    let res;
+    let loginBody;
 
-    it('la respuesta no contiene passwordhash', async () => {
+    beforeEach(async () => {
         usuario.findOne.mockResolvedValue(VALID_USER);
         bcrypt.compare.mockResolvedValue(true);
-
-        const res = mockRes();
+        res = mockRes();
         await auth.login(makeLoginReq({ email: 'admin@example.com', password: 'Pass1' }), res, jest.fn());
-
-        const body = res.json.mock.calls[0][0];
-        expect(body).not.toHaveProperty('passwordhash');
+        loginBody = res.json.mock.calls[0][0];
     });
 
-    it('la respuesta no contiene password en texto claro', async () => {
-        usuario.findOne.mockResolvedValue(VALID_USER);
-        bcrypt.compare.mockResolvedValue(true);
-
-        const res = mockRes();
-        await auth.login(makeLoginReq({ email: 'admin@example.com', password: 'Pass1' }), res, jest.fn());
-
-        const body = res.json.mock.calls[0][0];
-        expect(body).not.toHaveProperty('password');
+    it('la respuesta no contiene passwordhash', () => {
+        expect(loginBody).not.toHaveProperty('passwordhash');
     });
 
-    it('la respuesta solo contiene email, nombre, rol y jwt', async () => {
-        usuario.findOne.mockResolvedValue(VALID_USER);
-        bcrypt.compare.mockResolvedValue(true);
-
-        const res = mockRes();
-        await auth.login(makeLoginReq({ email: 'admin@example.com', password: 'Pass1' }), res, jest.fn());
-
-        const body = res.json.mock.calls[0][0];
-        const keys = Object.keys(body);
-        expect(keys.sort()).toEqual(['email', 'jwt', 'nombre', 'rol'].sort());
+    it('la respuesta no contiene password en texto claro', () => {
+        expect(loginBody).not.toHaveProperty('password');
     });
 
-    it('login fallido devuelve mensaje genérico (no revela existencia del usuario)', async () => {
+    it('la respuesta solo contiene email, nombre, rol y jwt', () => {
+        const keys = Object.keys(loginBody).toSorted((a, b) => a.localeCompare(b));
+        expect(keys).toEqual(['email', 'jwt', 'nombre', 'rol'].toSorted((a, b) => a.localeCompare(b)));
+    });
+
+    it('el JWT no contiene passwordhash en su payload', () => {
+        const [, payloadB64] = loginBody.jwt.split('.');
+        const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+        expect(JSON.stringify(payload)).not.toContain('passwordhash');
+        expect(JSON.stringify(payload)).not.toContain('$2b$');
+    });
+});
+
+describe('auth.controller.js — login fallido no revela existencia del usuario', () => {
+    it('mensaje de error es idéntico para usuario inexistente y contraseña incorrecta', async () => {
         const ip = makeTestIp();
 
         usuario.findOne.mockResolvedValue(null);
@@ -112,24 +87,7 @@ describe('auth.controller.js — login no expone datos sensibles', () => {
         const res2 = mockRes();
         await auth.login(makeLoginReq({ email: 'admin@example.com', password: 'WrongPass' }, ip), res2, jest.fn());
 
-        const msg1 = res1.json.mock.calls[0][0].mensaje;
-        const msg2 = res2.json.mock.calls[0][0].mensaje;
-        expect(msg1).toBe(msg2);
-    });
-
-    it('el JWT no contiene passwordhash en su payload', async () => {
-        usuario.findOne.mockResolvedValue(VALID_USER);
-        bcrypt.compare.mockResolvedValue(true);
-
-        const res = mockRes();
-        await auth.login(makeLoginReq({ email: 'admin@example.com', password: 'Pass1' }), res, jest.fn());
-
-        const { jwt } = res.json.mock.calls[0][0];
-        const [, payloadB64] = jwt.split('.');
-        const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
-
-        expect(JSON.stringify(payload)).not.toContain('passwordhash');
-        expect(JSON.stringify(payload)).not.toContain('$2b$');
+        expect(res1.json.mock.calls[0][0].mensaje).toBe(res2.json.mock.calls[0][0].mensaje);
     });
 });
 
@@ -137,86 +95,48 @@ describe('auth.controller.js — login no expone datos sensibles', () => {
 
 describe('auth.controller.js — registro siempre asigna rol Usuario', () => {
     const ROL_USUARIO = { id: 'rol-usuario-uuid', nombre: 'Usuario' };
-    const NEW_USER = {
-        id: crypto.randomUUID(),
-        email: 'nuevo@example.com',
-        nombre: 'Nuevo Usuario'
+    const NEW_USER    = { id: crypto.randomUUID(), email: 'nuevo@example.com', nombre: 'Nuevo Usuario' };
+
+    const REGISTRO_REQ = {
+        body:     { email: 'nuevo@example.com', password: 'Secure1pass', nombre: 'Nuevo' },
+        bitacora: jest.fn()
     };
 
-    it('busca exclusivamente el rol "Usuario" sin importar lo que venga en el body', async () => {
+    beforeEach(() => {
         rol.findOne.mockResolvedValue(ROL_USUARIO);
         usuario.findOne.mockResolvedValue(null);
-        usuario.create.mockResolvedValue(NEW_USER);
+        usuario.create.mockResolvedValue({ ...NEW_USER, rolid: ROL_USUARIO.id });
+    });
 
-        const res = mockRes();
-        await auth.registro(
-            {
-                body: { email: 'nuevo@example.com', password: 'Secure1pass', nombre: 'Nuevo' },
-                bitacora: jest.fn()
-            },
-            res,
-            jest.fn()
-        );
-
+    it('busca exclusivamente el rol "Usuario" sin importar lo que venga en el body', async () => {
+        await auth.registro(REGISTRO_REQ, mockRes(), jest.fn());
         expect(rol.findOne).toHaveBeenCalledWith(
             expect.objectContaining({ where: { nombre: 'Usuario' } })
         );
     });
 
     it('responde 201 con rol "Usuario" en la respuesta', async () => {
-        rol.findOne.mockResolvedValue(ROL_USUARIO);
-        usuario.findOne.mockResolvedValue(null);
-        usuario.create.mockResolvedValue({ ...NEW_USER, rolid: ROL_USUARIO.id });
-
         const res = mockRes();
-        await auth.registro(
-            {
-                body: { email: 'nuevo@example.com', password: 'Secure1pass', nombre: 'Nuevo' },
-                bitacora: jest.fn()
-            },
-            res,
-            jest.fn()
-        );
-
+        await auth.registro(REGISTRO_REQ, res, jest.fn());
         expect(res.status).toHaveBeenCalledWith(201);
-        const body = res.json.mock.calls[0][0];
-        expect(body.rol).toBe('Usuario');
+        expect(res.json.mock.calls[0][0].rol).toBe('Usuario');
     });
 
     it('la respuesta no contiene passwordhash ni password', async () => {
-        rol.findOne.mockResolvedValue(ROL_USUARIO);
-        usuario.findOne.mockResolvedValue(null);
-        usuario.create.mockResolvedValue({ ...NEW_USER, rolid: ROL_USUARIO.id });
-
         const res = mockRes();
-        await auth.registro(
-            {
-                body: { email: 'nuevo@example.com', password: 'Secure1pass', nombre: 'Nuevo' },
-                bitacora: jest.fn()
-            },
-            res,
-            jest.fn()
-        );
-
+        await auth.registro(REGISTRO_REQ, res, jest.fn());
         const body = res.json.mock.calls[0][0];
         expect(body).not.toHaveProperty('passwordhash');
         expect(body).not.toHaveProperty('password');
     });
 
-    it('responde 409 si el email ya existe (no revela detalles internos)', async () => {
-        rol.findOne.mockResolvedValue(ROL_USUARIO);
+    it('responde 409 si el email ya existe sin revelar detalles internos', async () => {
         usuario.findOne.mockResolvedValue({ id: 'existing-uuid' });
-
         const res = mockRes();
         await auth.registro(
-            {
-                body: { email: 'existente@example.com', password: 'Secure1pass', nombre: 'Ya Existe' },
-                bitacora: jest.fn()
-            },
-            res,
-            jest.fn()
+            { body: { email: 'existente@example.com', password: 'Secure1pass', nombre: 'Ya Existe' }, bitacora: jest.fn() },
+            res, jest.fn()
         );
-
         expect(res.status).toHaveBeenCalledWith(409);
         const body = res.json.mock.calls[0][0];
         expect(body).toHaveProperty('mensaje');
@@ -226,18 +146,8 @@ describe('auth.controller.js — registro siempre asigna rol Usuario', () => {
 
     it('pasa el error a next si el rol Usuario no existe en BD', async () => {
         rol.findOne.mockResolvedValue(null);
-        usuario.findOne.mockResolvedValue(null);
-
         const next = jest.fn();
-        await auth.registro(
-            {
-                body: { email: 'nuevo@example.com', password: 'Secure1pass', nombre: 'Test' },
-                bitacora: jest.fn()
-            },
-            mockRes(),
-            next
-        );
-
+        await auth.registro(REGISTRO_REQ, mockRes(), next);
         expect(next).toHaveBeenCalledWith(expect.any(Error));
     });
 });
@@ -248,30 +158,18 @@ describe('auth.middleware.js — req.auth es inmutable (Object.freeze)', () => {
     it('req.auth no puede ser modificado por código posterior', async () => {
         const token = GeneraToken('user@test.com', 'Test User', 'Usuario');
         const req = makeAuthReq(token);
-        const res = mockRes();
+        await Authorize(['Usuario'])(req, mockRes(), jest.fn());
 
-        await Authorize(['Usuario'])(req, res, jest.fn());
-
-        expect(() => {
-            req.auth.rol = 'Administrador';
-        }).toThrow();
-
+        expect(() => { req.auth.rol = 'Administrador'; }).toThrow();
         expect(req.auth.rol).toBe('Usuario');
     });
 
-    it('req.auth contiene exactamente email, nombre, rol, exp, iat, jti', async () => {
+    it('req.auth contiene email, nombre, rol, exp e iat', async () => {
         const token = GeneraToken('user@test.com', 'Test User', 'Usuario');
         const req = makeAuthReq(token);
-        const res = mockRes();
+        await Authorize(['Usuario'])(req, mockRes(), jest.fn());
 
-        await Authorize(['Usuario'])(req, res, jest.fn());
-
-        expect(req.auth).toMatchObject({
-            email: 'user@test.com',
-            nombre: 'Test User',
-            rol: 'Usuario'
-        });
-
+        expect(req.auth).toMatchObject({ email: 'user@test.com', nombre: 'Test User', rol: 'Usuario' });
         expect(req.auth).toHaveProperty('exp');
         expect(req.auth).toHaveProperty('iat');
     });

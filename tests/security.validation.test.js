@@ -17,21 +17,8 @@ jest.mock('bcrypt', () => ({
     hashSync: jest.fn().mockReturnValue('$2b$04$fakehash_static')
 }));
 
-const { validationResult } = require('express-validator');
 const { normalizeText } = require('../utils/validators');
-
-// Ejecuta las cadenas de express-validator sobre un request sintético
-async function runValidators(validators, body = {}) {
-    const req = { body, params: {}, query: {} };
-
-    for (const v of validators) {
-        if (v && typeof v.run === 'function') {
-            await v.run(req);
-        }
-    }
-
-    return validationResult(req);
-}
+const { runValidators } = require('./helpers/test-utils');
 
 // ── Validadores de registro público ──────────────────────────────────────────
 
