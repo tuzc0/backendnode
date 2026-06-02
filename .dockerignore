@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+coverage
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.claude
+.vscode
+log
+uploads
+restclient
+tests
