@@ -25,4 +25,5 @@ uploads
 restclient
 tests
 
-swagger-output.json
+jest.config.js
+swagger.js
