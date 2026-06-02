@@ -4,13 +4,18 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY package*.json ./
+COPY --chmod=444 package*.json ./
 
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev \
+    && npm cache clean --force
 
-COPY . .
+COPY --chmod=555 . .
 
-RUN mkdir -p uploads log
+RUN mkdir -p uploads log \
+    && chown -R node:node uploads log \
+    && chmod -R 750 uploads log
+
+USER node
 
 EXPOSE 3000
 
