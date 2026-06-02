@@ -64,7 +64,7 @@ const corsOptions = {
 
         return callback(new Error('Origen no permitido por CORS.'))
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Set-Authorization'],
     credentials: false,
@@ -104,6 +104,7 @@ app.use('/api/roles', require('./routes/roles.routes'))
 app.use('/api/auth', require('./routes/auth.routes'))
 app.use('/api/archivos', require('./routes/archivos.routes'))
 app.use('/api/bitacora', require('./routes/bitacora.routes'))
+app.use('/api/pedidos', require('./routes/pedidos.routes'))
 
 app.get('/', (req, res) => {
     res.status(200).json({

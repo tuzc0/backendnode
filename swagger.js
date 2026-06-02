@@ -81,6 +81,10 @@ const doc = {
         {
             name: 'Bitacora',
             description: 'Consulta de auditoría del sistema.'
+        },
+        {
+            name: 'Pedidos',
+            description: 'Gestión de pedidos y checkout.'
         }
     ],
 
