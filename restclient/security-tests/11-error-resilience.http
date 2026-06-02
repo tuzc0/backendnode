@@ -1,0 +1,276 @@
+### ============================================================
+### 11-error-resilience.http — Resiliencia ante errores (módulo pedidos)
+### ============================================================
+### Demuestra que el servidor maneja errores de forma controlada:
+###   - No se cae ante entradas malformadas.
+###   - No expone stack traces ni detalles internos.
+###   - Responde mensajes genéricos ante errores no controlados.
+###   - Sigue respondiendo correctamente después de cada error.
+###
+### Tras cada error se ejecuta GET /health para evidenciar que
+### el proceso sigue activo y el API sigue funcionando.
+### ============================================================
+
+@baseUrl       = http://localhost:3000
+@adminEmail    = Admin@example.com
+@adminPassword = AdminTest2026!
+@userEmail     = claudiojtz1402@gmail.com
+@userPassword  = l9523L990@
+
+###
+# @name loginAdmin
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+# @name loginUser
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+### ── JSON MALFORMADO ──────────────────────────────────────────
+
+###
+# Esperado: 400 Bad Request — JSON inválido en login
+# Express rechaza el body antes de llegar al controller.
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{ email: "falta_comillas", "password": "Pass1234" }
+
+###
+# Servidor activo tras JSON malformado
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — JSON inválido en productos
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{ "titulo": "sin cerrar
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — JSON inválido en pedidos
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+[items: broken
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+### ── BODY VACÍO ───────────────────────────────────────────────
+
+###
+# Esperado: 400 Bad Request — login sin body
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — pedido sin body
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — cambio de estado sin body
+PATCH {{baseUrl}}/api/pedidos/1/estado
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+### ── IDs INVÁLIDOS ────────────────────────────────────────────
+
+###
+# Esperado: 400 Bad Request — id de pedido no es entero
+GET {{baseUrl}}/api/pedidos/abc
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — id de pedido es cero
+GET {{baseUrl}}/api/pedidos/0
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — id de pedido es negativo
+GET {{baseUrl}}/api/pedidos/-1
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — id de pedido con SQL injection
+PATCH {{baseUrl}}/api/pedidos/1 OR 1=1/estado
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{ "estado": "ENVIADO" }
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+### ── RUTAS INEXISTENTES ───────────────────────────────────────
+
+###
+# Esperado: 404 Not Found — { "mensaje": "Recurso no encontrado" }
+GET {{baseUrl}}/api/pedidos/ruta/que/no/existe
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+###
+# Esperado: 404 Not Found — pedido con id enorme
+GET {{baseUrl}}/api/pedidos/999999999
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+### ── CONTENT-TYPE INCORRECTO ─────────────────────────────────
+
+###
+# Esperado: 400 — body enviado como texto plano en lugar de JSON
+POST {{baseUrl}}/api/pedidos
+Content-Type: text/plain
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+items=1&cantidad=1
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+### ── MÉTODOS NO PERMITIDOS ───────────────────────────────────
+
+###
+# Esperado: 405 Method Not Allowed
+DELETE {{baseUrl}}/api/pedidos
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+###
+# Esperado: 405 Method Not Allowed
+PUT {{baseUrl}}/api/pedidos/1
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{ "estado": "ENVIADO" }
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+### ── ESTADO INVÁLIDO EN PATCH ────────────────────────────────
+
+###
+# Esperado: 400 Bad Request — estado vacío
+PATCH {{baseUrl}}/api/pedidos/1/estado
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{ "estado": "" }
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+###
+# Esperado: 400 Bad Request — estado con caracteres especiales
+PATCH {{baseUrl}}/api/pedidos/1/estado
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{ "estado": "<script>alert(1)</script>" }
+
+###
+# Servidor activo
+GET {{baseUrl}}/health
+
+### ── CONFIRMACIÓN FINAL ───────────────────────────────────────
+
+###
+# Esperado: 200 OK — el API sigue respondiendo tras todos los errores
+GET {{baseUrl}}/health
+Accept: application/json
+
+###
+# Esperado: 200 OK — la BD sigue conectada
+GET {{baseUrl}}/health/db
+Accept: application/json
+
+###
+# Esperado: 200 OK — endpoints existentes siguen funcionando
+GET {{baseUrl}}/api/productos
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — tiempo de sesión sigue funcionando
+GET {{baseUrl}}/api/auth/tiempo
+Accept: text/plain
+Authorization: Bearer {{loginUser.response.body.$.jwt}}

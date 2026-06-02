@@ -1,0 +1,166 @@
+### ============================================================
+### 12-rate-limit.http — Pruebas de rate limiting
+### ============================================================
+### Demuestra que el backend aplica límite de intentos y devuelve
+### 429 Too Many Requests cuando se excede el umbral configurado.
+###
+### RATE LIMITS DEL SISTEMA:
+###   1. loginRateLimit (middleware):  30 req / 15 min por IP
+###   2. Login controller (interno):   5 fallos / 15 min por IP+email
+###      → Devuelve 429 al 6to intento fallido
+###   3. registroRateLimit:            configurable via .env
+###      → REGISTRO_RATE_LIMIT_WINDOW_MS (default: 900000 = 15min)
+###      → REGISTRO_RATE_LIMIT_MAX_REQUESTS (default: 10)
+###   4. apiRateLimit:                 300 req / 15 min por IP
+###
+### PARA ACTIVAR 429 EN PRUEBA LOCAL (sin esperar 15 min):
+###   Configura en .env antes de arrancar el servidor:
+###     REGISTRO_RATE_LIMIT_WINDOW_MS=120000
+###     REGISTRO_RATE_LIMIT_MAX_REQUESTS=3
+###   Así se activa el 429 al 4to registro desde la misma IP.
+###
+### Para el brute-force del login (más rápido de probar):
+###   Ejecuta el bloque "Login brute-force" 6 veces en secuencia.
+###   Al 6to intento fallido con el mismo email+IP → 429.
+### ============================================================
+
+@baseUrl = http://localhost:3000
+
+### ── BRUTE-FORCE DE LOGIN (CONTROLLER-LEVEL) ────────────────
+### Ejecuta este bloque 6 veces consecutivas.
+### Las primeras 5 devolverán 401.
+### La 6ta devolverá 429 con mensaje de bloqueo.
+###
+### NOTA: usa un email inexistente para no afectar usuarios reales.
+### El bloqueo es por IP+email, no afecta otras cuentas.
+### El bloqueo se libera automáticamente tras 15 minutos.
+
+###
+# Intento de login fallido (repetir 5 veces para activar bloqueo)
+# Esperado primeras 5 veces: 401 Unauthorized
+# Esperado 6ta vez: 429 Too Many Requests
+# Mensaje esperado en 429: "Demasiados intentos fallidos. Intente nuevamente más tarde."
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "brute.force.test@example.com",
+  "password": "ContrasenaIncorrecta1"
+}
+
+###
+# Servidor sigue activo (otras cuentas no se ven afectadas)
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+### ── RATE LIMIT DE REGISTRO PÚBLICO ─────────────────────────
+### Con REGISTRO_RATE_LIMIT_MAX_REQUESTS=3, el 4to intento
+### desde la misma IP devuelve 429.
+###
+### El email puede ser inexistente — el rate limit se aplica
+### ANTES de validar si el email existe.
+
+###
+# Intento 1 — Esperado: 201 Created o 409 si el email ya existe
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "ratelimit.test1@example.com",
+  "password": "Secure1pass",
+  "nombre": "Rate Test Uno"
+}
+
+###
+# Intento 2 — Esperado: 201 o 409
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "ratelimit.test2@example.com",
+  "password": "Secure1pass",
+  "nombre": "Rate Test Dos"
+}
+
+###
+# Intento 3 — Esperado: 201 o 409 (este es el 3ro, límite configurado en max=3)
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "ratelimit.test3@example.com",
+  "password": "Secure1pass",
+  "nombre": "Rate Test Tres"
+}
+
+###
+# Intento 4 — Esperado: 429 Too Many Requests
+# Solo si REGISTRO_RATE_LIMIT_MAX_REQUESTS=3 en .env
+# Con configuración por defecto (10 intentos): este retorna 201/409.
+# Headers de respuesta incluirán: Retry-After: <segundos>
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "ratelimit.test4@example.com",
+  "password": "Secure1pass",
+  "nombre": "Rate Test Cuatro"
+}
+
+###
+# Intento adicional — Esperado: 429 (confirmación)
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "ratelimit.test5@example.com",
+  "password": "Secure1pass",
+  "nombre": "Rate Test Cinco"
+}
+
+###
+# Servidor activo tras rate limiting
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+
+###
+# Verificar que otros endpoints no se ven afectados por el rate limit de registro
+# Esperado: 200 OK (el API rate limit es 300/15min, muy difícil de alcanzar)
+GET {{baseUrl}}/health/db
+
+### ── RESPONSE ESPERADO PARA 429 ─────────────────────────────
+###
+### HTTP/1.1 429 Too Many Requests
+### Retry-After: <segundos hasta reset>
+### Content-Type: application/json
+###
+### {
+###   "mensaje": "Demasiadas solicitudes. Intente nuevamente más tarde."
+### }
+###
+### IMPORTANTE: el header Retry-After indica cuántos segundos esperar.
+### El cliente debería leer este header y no reintentar antes.
+
+### ── NOTAS PARA EJECUTOR ──────────────────────────────────────
+###
+### Para activar 429 en login brute-force:
+###   1. Ejecuta el bloque "POST /api/auth" con email inexistente
+###   2. Repite 6 veces (5 intentos activan el bloqueo, el 6to es 429)
+###   3. El bloqueo es por IP+email, no afecta login de otros usuarios
+###   4. El bloqueo se libera automáticamente tras 15 minutos
+###
+### Para activar 429 en registro:
+###   1. Agrega a .env: REGISTRO_RATE_LIMIT_MAX_REQUESTS=3
+###   2. Reinicia el servidor
+###   3. Ejecuta los 4 intentos de registro en este archivo
+###   4. El 4to intentará y devolverá 429
+###   5. El window por defecto es 15 min, o ajusta REGISTRO_RATE_LIMIT_WINDOW_MS=60000
+###
+### Para regresar a los valores por defecto:
+###   Elimina o comenta las variables en .env y reinicia el servidor.

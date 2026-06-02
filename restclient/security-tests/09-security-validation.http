@@ -1,0 +1,334 @@
+### ============================================================
+### 09-security-validation.http — Inyección, XSS y overposting
+### ============================================================
+### Demuestra que el backend rechaza ataques de inyección,
+### intento de manipulación de campos sensibles y datos XSS.
+###
+### Casos cubiertos:
+###   - SQL Injection en login → 401 (nunca 500)
+###   - Registro con rol manipulado → 400 (overposting bloqueado)
+###   - Registro con campos internos → 400
+###   - Categoría con paréntesis (caracteres fuera de regex) → 400
+###   - Producto con campos extra prohibidos → 400
+###   - Pedido con precio/total/subtotal en body → 400
+###   - Pedido con usuarioid inyectado → 400
+###   - XSS en campos de texto → 400 o 400/201 con datos sanitizados
+### ============================================================
+
+@baseUrl       = http://localhost:3000
+@adminEmail    = Admin@example.com
+@adminPassword = AdminTest2026!
+@userEmail     = claudiojtz1402@gmail.com
+@userPassword  = l9523L990@
+
+### ── OBTENER TOKENS ──────────────────────────────────────────
+
+###
+# @name loginAdmin
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+# @name loginUser
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+### ── SQL INJECTION EN LOGIN ──────────────────────────────────
+
+###
+# Esperado: 401 Unauthorized
+# La respuesta debe ser genérica, nunca 500 ni mensaje de BD.
+# El backend valida formato de email antes de consultar la BD.
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "' OR '1'='1",
+  "password": "' OR '1'='1"
+}
+
+###
+# Esperado: 401 Unauthorized
+# Inyección clásica con comentario SQL
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "admin'--",
+  "password": "cualquier"
+}
+
+###
+# Esperado: 401 Unauthorized
+# El servidor sigue activo después de la inyección
+GET {{baseUrl}}/health
+
+### ── OVERPOSTING EN REGISTRO PÚBLICO ────────────────────────
+
+###
+# Esperado: 400 Bad Request
+# Intento de auto-asignarse rol Administrador en registro público.
+# El validador bloquea explícitamente el campo 'rol'.
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "atacante@example.com",
+  "password": "Secure1pass",
+  "nombre": "Atacante",
+  "rol": "Administrador"
+}
+
+###
+# Esperado: 400 Bad Request — campo 'id' no permitido
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "atacante2@example.com",
+  "password": "Secure1pass",
+  "nombre": "Atacante",
+  "id": "uuid-inventado-para-tomar-control"
+}
+
+###
+# Esperado: 400 Bad Request — campo 'passwordhash' no permitido
+# Intento de inyectar hash de contraseña conocida
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "atacante3@example.com",
+  "password": "Secure1pass",
+  "nombre": "Atacante",
+  "passwordhash": "$2b$12$hash_de_contrasena_conocida"
+}
+
+###
+# Esperado: 400 Bad Request — campo 'rolid' no permitido
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "atacante4@example.com",
+  "password": "Secure1pass",
+  "nombre": "Atacante",
+  "rolid": "uuid-del-rol-admin"
+}
+
+###
+# Esperado: 400 Bad Request — campo 'protegido' no permitido
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "atacante5@example.com",
+  "password": "Secure1pass",
+  "nombre": "Atacante",
+  "protegido": true
+}
+
+### ── XSS EN CAMPOS DE TEXTO ──────────────────────────────────
+
+###
+# Esperado: 400 Bad Request
+# El nombre de categoría rechaza caracteres fuera del regex permitido.
+# <script> falla la regex /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s.,-]+$/
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "nombre": "<script>alert('xss')</script>"
+}
+
+###
+# Esperado: 400 Bad Request — paréntesis no están en la regex permitida
+# Categoría: /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s.,-]+$/ — sin paréntesis
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "nombre": "Supermercado (Verduras)"
+}
+
+###
+# Esperado: 400 Bad Request — título de producto rechaza < >
+# El validador usa .custom((v) => !/[<>]/.test(v))
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "<b>Producto XSS</b>",
+  "descripcion": "Descripcion valida con longitud suficiente para pasar validacion",
+  "precio": 100.00
+}
+
+###
+# Esperado: 400 Bad Request — XSS en nombre de usuario en registro
+# El nombre usa regex /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.'-]+$/
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "xss.test@example.com",
+  "password": "Secure1pass",
+  "nombre": "<img src=x onerror=alert(1)>"
+}
+
+### ── OVERPOSTING EN PRODUCTOS ────────────────────────────────
+
+###
+# Esperado: 400 Bad Request — campo 'id' no permitido en producto
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "id": 999,
+  "titulo": "Producto Con Id",
+  "descripcion": "Descripcion valida con longitud suficiente para pasar validacion",
+  "precio": 100.00
+}
+
+###
+# Esperado: 400 Bad Request — campo 'categorias' no permitido
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Producto Con Categorias",
+  "descripcion": "Descripcion valida con longitud suficiente para pasar validacion",
+  "precio": 100.00,
+  "categorias": [1, 2, 3]
+}
+
+###
+# Esperado: 400 Bad Request — campo 'createdAt' no permitido
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Backdating Intento",
+  "descripcion": "Descripcion valida con longitud suficiente para pasar validacion",
+  "precio": 100.00,
+  "createdAt": "2020-01-01T00:00:00Z"
+}
+
+###
+# Esperado: 400 Bad Request — campo 'updatedAt' no permitido
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "titulo": "Backdating Updated",
+  "descripcion": "Descripcion valida con longitud suficiente para pasar validacion",
+  "precio": 100.00,
+  "updatedAt": "2020-01-01T00:00:00Z"
+}
+
+### ── MANIPULACIÓN DE PRECIOS EN PEDIDOS ──────────────────────
+
+###
+# Esperado: 400 Bad Request
+# El validador rechaza 'total' en el body.
+# El backend calcula el total desde los precios de la BD.
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+{
+  "items": [{ "productoId": 1, "cantidad": 1 }],
+  "total": 0.01
+}
+
+###
+# Esperado: 400 Bad Request — campo 'precio' no permitido
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+{
+  "items": [{ "productoId": 1, "cantidad": 1 }],
+  "precio": 0.01
+}
+
+###
+# Esperado: 400 Bad Request — campo 'subtotal' no permitido
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+{
+  "items": [{ "productoId": 1, "cantidad": 1 }],
+  "subtotal": 0.01
+}
+
+###
+# Esperado: 400 Bad Request — campo 'usuarioid' no permitido
+# El usuarioid SIEMPRE sale del JWT, nunca del body.
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+{
+  "items": [{ "productoId": 1, "cantidad": 1 }],
+  "usuarioid": "uuid-de-otro-usuario"
+}
+
+###
+# Esperado: 400 Bad Request — campo 'estado' no permitido al crear
+# El estado inicial siempre es PENDIENTE, no lo elige el cliente.
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+{
+  "items": [{ "productoId": 1, "cantidad": 1 }],
+  "estado": "ENTREGADO"
+}
+
+###
+# Confirmación final: servidor activo tras todos los ataques
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+Accept: application/json

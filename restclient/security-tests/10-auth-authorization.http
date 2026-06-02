@@ -1,0 +1,263 @@
+### ============================================================
+### 10-auth-authorization.http — Autenticación y autorización (pedidos)
+### ============================================================
+### Demuestra el modelo de autorización completo para el módulo
+### de pedidos y valida que el control de acceso funciona en todos
+### los casos críticos.
+###
+### Casos cubiertos:
+###   - Acceso sin token → 401
+###   - Token con firma inválida → 401
+###   - Token mal formado → 401
+###   - Usuario accede a ruta exclusiva Admin → 403
+###   - Admin accede a /mios (ruta exclusiva Usuario) → 403
+###   - Usuario solo puede ver sus propios pedidos (IDOR)
+###   - Admin puede ver cualquier pedido
+###   - Admin puede cambiar estado
+###   - Usuario no puede cambiar estado → 403
+###   - Tokens de otros usuarios son rechazados correctamente
+### ============================================================
+
+@baseUrl       = http://localhost:3000
+@adminEmail    = Admin@example.com
+@adminPassword = AdminTest2026!
+@userEmail     = claudiojtz1402@gmail.com
+@userPassword  = l9523L990@
+@user2Email    = user@example.com
+@user2Password = UserTest2026!
+
+### ── OBTENER TOKENS ──────────────────────────────────────────
+
+###
+# @name loginAdmin
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+# @name loginUser
+# Esperado: 200 OK
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+###
+# @name loginUser2
+# Esperado: 200 OK — segundo usuario para pruebas IDOR
+POST {{baseUrl}}/api/auth
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{user2Email}}",
+  "password": "{{user2Password}}"
+}
+
+### ── ACCESO SIN AUTENTICACIÓN → 401 ─────────────────────────
+
+###
+# Esperado: 401 Unauthorized — POST /api/pedidos sin token
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+
+{
+  "items": [{ "productoId": 1, "cantidad": 1 }]
+}
+
+###
+# Esperado: 401 Unauthorized — GET /api/pedidos/mios sin token
+GET {{baseUrl}}/api/pedidos/mios
+Accept: application/json
+
+###
+# Esperado: 401 Unauthorized — GET /api/pedidos sin token
+GET {{baseUrl}}/api/pedidos
+Accept: application/json
+
+###
+# Esperado: 401 Unauthorized — PATCH /api/pedidos/1/estado sin token
+PATCH {{baseUrl}}/api/pedidos/1/estado
+Content-Type: application/json
+Accept: application/json
+
+{ "estado": "ENVIADO" }
+
+### ── TOKEN INVÁLIDO → 401 ────────────────────────────────────
+
+###
+# Esperado: 401 Unauthorized — firma JWT inválida
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxfQ.firma_completamente_invalida
+
+{
+  "items": [{ "productoId": 1, "cantidad": 1 }]
+}
+
+###
+# Esperado: 401 Unauthorized — token mal formado (no tiene 3 partes)
+GET {{baseUrl}}/api/pedidos/mios
+Accept: application/json
+Authorization: Bearer solo.untoken
+
+###
+# Esperado: 401 Unauthorized — Bearer sin token
+GET {{baseUrl}}/api/pedidos
+Accept: application/json
+Authorization: Bearer
+
+### ── CONTROL DE ROLES ─────────────────────────────────────────
+
+###
+# Esperado: 403 Forbidden
+# Usuario intenta crear pedidos → POST /api/pedidos requiere rol Usuario ✓
+# Pero Admin intentando usar el mismo endpoint → 403
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{
+  "items": [{ "productoId": 1, "cantidad": 1 }]
+}
+
+###
+# Esperado: 403 Forbidden
+# Admin intenta acceder a /mios (solo rol Usuario)
+GET {{baseUrl}}/api/pedidos/mios
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 403 Forbidden
+# Usuario intenta listar todos los pedidos (solo Admin)
+GET {{baseUrl}}/api/pedidos
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Esperado: 403 Forbidden
+# Usuario intenta cambiar estado (solo Admin)
+PATCH {{baseUrl}}/api/pedidos/1/estado
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+{ "estado": "ENVIADO" }
+
+### ── CREAR PEDIDO Y OBTENER ID PARA PRUEBAS IDOR ─────────────
+
+###
+# @name pedidoDeUser1
+# Esperado: 201 Created — pedido del usuario 1
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+{
+  "items": [{ "productoId": 1, "cantidad": 1 }]
+}
+
+### ── AISLAMIENTO DE DATOS: USUARIO SOLO VE SUS PEDIDOS ───────
+
+###
+# Esperado: 200 OK — usuario ve su propio pedido
+GET {{baseUrl}}/api/pedidos/{{pedidoDeUser1.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — Admin puede ver cualquier pedido
+GET {{baseUrl}}/api/pedidos/{{pedidoDeUser1.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# PRUEBA IDOR CRÍTICA:
+# Usuario 2 intenta ver el pedido del Usuario 1.
+# Esperado: 404 Not Found
+# El backend devuelve 404 (no 403) para no revelar que el pedido existe.
+GET {{baseUrl}}/api/pedidos/{{pedidoDeUser1.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{loginUser2.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — Usuario 1 lista solo sus pedidos
+GET {{baseUrl}}/api/pedidos/mios
+Accept: application/json
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — Admin lista todos los pedidos (todos los usuarios)
+GET {{baseUrl}}/api/pedidos
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+### ── CAMBIO DE ESTADO (SOLO ADMIN) ──────────────────────────
+
+###
+# Esperado: 200 OK — Admin cambia estado a EN_PROCESO
+PATCH {{baseUrl}}/api/pedidos/{{pedidoDeUser1.response.body.$.id}}/estado
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{ "estado": "EN_PROCESO" }
+
+###
+# Esperado: 200 OK — Admin cambia estado a ENVIADO
+PATCH {{baseUrl}}/api/pedidos/{{pedidoDeUser1.response.body.$.id}}/estado
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{ "estado": "ENVIADO" }
+
+###
+# Esperado: 400 Bad Request — estado inválido bloqueado por validator
+PATCH {{baseUrl}}/api/pedidos/{{pedidoDeUser1.response.body.$.id}}/estado
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+{ "estado": "ESTADO_INEXISTENTE" }
+
+### ── TIEMPO DE SESIÓN JWT ────────────────────────────────────
+
+###
+# Esperado: 200 OK — tiempo restante de sesión en formato MM:SS
+GET {{baseUrl}}/api/auth/tiempo
+Accept: text/plain
+Authorization: Bearer {{loginUser.response.body.$.jwt}}
+
+###
+# Esperado: 200 OK — admin también puede consultar tiempo
+GET {{baseUrl}}/api/auth/tiempo
+Accept: text/plain
+Authorization: Bearer {{loginAdmin.response.body.$.jwt}}
+
+###
+# Esperado: 401 Unauthorized — sin token
+GET {{baseUrl}}/api/auth/tiempo
+Accept: text/plain
+
+### ── VERIFICACIÓN FINAL: SERVIDOR ACTIVO ─────────────────────
+
+###
+# Esperado: 200 OK
+GET {{baseUrl}}/health
+Accept: application/json
